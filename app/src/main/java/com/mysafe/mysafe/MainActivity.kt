@@ -21,12 +21,14 @@ import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import android.location.Geocoder
 
 data class HistoryItem(
     val lat: Double,
     val lon: Double,
     val time: String,
-    val from: String
+    val from: String,
+    val address: String
 )
 
 class MainActivity : AppCompatActivity() {
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var titleHeader: TextView
     private lateinit var hiddenMenu: LinearLayout
     private lateinit var historyContainer: LinearLayout
+    private lateinit var btnClearHistory: Button
     
     private var myPhoneNumber = ""
     private var isMonitoring = false
@@ -56,7 +59,9 @@ class MainActivity : AppCompatActivity() {
             val time = intent.getStringExtra("time") ?: "--:--:--"
             val from = intent.getStringExtra("from") ?: "???"
             updateMapPosition(lat, lon, time, from)
-            addToHistory(lat, lon, time, from)
+            getAddressAsync(lat, lon) { address ->
+                addToHistory(lat, lon, time, from, address)
+            }
         }
     }
 
@@ -83,6 +88,7 @@ class MainActivity : AppCompatActivity() {
         titleHeader = findViewById(R.id.title_header)
         hiddenMenu = findViewById(R.id.hidden_menu)
         historyContainer = findViewById(R.id.history_container)
+        btnClearHistory = findViewById(R.id.btn_clear_history)
 
         myPhoneNumber = getMyPhoneNumber()
         myPhoneInput.setText(myPhoneNumber)
@@ -121,6 +127,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "⏹ Streaming arrêté", Toast.LENGTH_SHORT).show()
         }
 
+        btnClearHistory.setOnClickListener {
+            history.clear()
+            historyContainer.removeAllViews()
+            Toast.makeText(this, "🗑️ Historique effacé !", Toast.LENGTH_SHORT).show()
+        }
+
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
         requestAllPermissions()
     }
@@ -130,6 +142,24 @@ class MainActivity : AppCompatActivity() {
             val tm = getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
             tm.line1Number ?: ""
         } catch (e: Exception) { "" }
+    }
+
+    private fun getAddressAsync(lat: Double, lon: Double, callback: (String) -> Unit) {
+        Thread {
+            var addressStr = "Adresse inconnue"
+            try {
+                val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
+                val addresses = geocoder.getFromLocation(lat, lon, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    val addr = addresses[0]
+                    addressStr = addr.thoroughfare ?: addr.featureName ?: "Sans nom de rue"
+                    if (addr.subLocality != null) addressStr = addr.subLocality + ", " + addressStr
+                }
+            } catch (e: Exception) {
+                addressStr = "Erreur adresse"
+            }
+            runOnUiThread { callback(addressStr) }
+        }.start()
     }
 
     private fun toggleMonitoring() {
@@ -153,7 +183,9 @@ class MainActivity : AppCompatActivity() {
             LocationService.lastLocation?.let { 
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 updateMapPosition(it.latitude, it.longitude, time, "MOI")
-                addToHistory(it.latitude, it.longitude, time, "MOI")
+                getAddressAsync(it.latitude, it.longitude) { address ->
+                    addToHistory(it.latitude, it.longitude, time, "MOI", address)
+                }
             }
         } else {
             val intent = Intent(this, LocationService::class.java)
@@ -186,8 +218,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addToHistory(lat: Double, lon: Double, time: String, from: String) {
-        // Vérifie si c'est trop proche de la dernière entrée
+    private fun addToHistory(lat: Double, lon: Double, time: String, from: String, address: String) {
         var tropProche = false
         val lastItem = history.lastOrNull()
         if (lastItem != null) {
@@ -201,18 +232,26 @@ class MainActivity : AppCompatActivity() {
         }
         
         if (!tropProche) {
-            val item = HistoryItem(lat, lon, time, from)
+            val item = HistoryItem(lat, lon, time, from, address)
             history.add(item)
             
             runOnUiThread {
                 val entry = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(8, 6, 8, 6)
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(8, 8, 8, 8)
                     setBackgroundColor(0xFFF0F0F0.toInt())
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 2, 0, 2) }
+                    ).apply { setMargins(0, 4, 0, 4) }
+                }
+
+                val topRow = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
                 }
 
                 val timeText = TextView(this@MainActivity).apply {
@@ -226,36 +265,45 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                val coordText = TextView(this@MainActivity).apply {
-                    text = String.format("%.5f, %.5f", lat, lon)
-                    textSize = 11f
-                    setTextColor(0xFF333333.toInt())
+                val addrText = TextView(this@MainActivity).apply {
+                    text = address
+                    textSize = 13f
+                    setTextColor(0xFF222222.toInt())
                     setPadding(0, 0, 8, 0)
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     maxLines = 1
+                    isSingleLine = true
                 }
 
-                val mapBtn = TextView(this@MainActivity).apply {
-                    text = "🌍 Maps"
-                    textSize = 11f
-                    setTextColor(0xFFFFFFFF.toInt())
-                    setBackgroundColor(0xFF4285F4.toInt())
-                    setPadding(12, 4, 12, 4)
-                    gravity = Gravity.CENTER
+                topRow.addView(timeText)
+                topRow.addView(addrText)
+
+                val miniMap = MapView(this@MainActivity).apply {
+                    setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
+                    setMultiTouchControls(false)
+                    isClickable = false
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        120
+                    )
+                    controller?.setZoom(14.0)
+                    controller?.setCenter(GeoPoint(lat, lon))
+                    setBackgroundColor(0xFFE8E8E8.toInt())
+                    val miniMarker = Marker(this).apply {
+                        position = GeoPoint(lat, lon)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
+                    }
+                    overlays.add(miniMarker)
                     setOnClickListener {
                         val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
                         startActivity(Intent(Intent.ACTION_VIEW, uri))
                     }
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
                 }
 
-                entry.addView(timeText)
-                entry.addView(coordText)
-                entry.addView(mapBtn)
+                entry.addView(topRow)
+                entry.addView(miniMap)
                 
                 historyContainer.addView(entry, 0)
             }
