@@ -93,12 +93,18 @@ class MainActivity : AppCompatActivity() {
         myPhoneNumber = getMyPhoneNumber()
         myPhoneInput.setText(myPhoneNumber)
 
+        // ✅ MENU CACHÉ — 5 CLICS SUR LE TITRE
         titleHeader.setOnClickListener {
             titleClickCount++
             if (titleClickCount >= 5) {
                 titleClickCount = 0
-                hiddenMenu.visibility = if (hiddenMenu.visibility == View.GONE) View.VISIBLE else View.GONE
-                if (hiddenMenu.visibility == View.VISIBLE) Toast.makeText(this, "📹 Menu Streaming déverrouillé", Toast.LENGTH_SHORT).show()
+                if (hiddenMenu.visibility == View.GONE) {
+                    hiddenMenu.visibility = View.VISIBLE
+                    Toast.makeText(this, "📹 Menu Streaming DÉVERROUILLÉ", Toast.LENGTH_SHORT).show()
+                } else {
+                    hiddenMenu.visibility = View.GONE
+                    Toast.makeText(this, "🔒 Menu Streaming caché", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
