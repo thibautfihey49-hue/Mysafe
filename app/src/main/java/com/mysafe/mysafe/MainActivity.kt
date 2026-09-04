@@ -155,7 +155,6 @@ Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPrefere
 
     private fun updateMapPosition(lat: Double, lon: Double, time: String, from: String) {
         val point = GeoPoint(lat, lon)
-        positions.add(point)
         runOnUiThread {
             positionMarker?.let { map.overlays.remove(it) }
             positionMarker = Marker(map).apply {
@@ -166,9 +165,6 @@ Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPrefere
                 icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
             }
             map.overlays.add(positionMarker)
-            pathLine?.let { map.overlays.remove(it) }
-            if (positions.size > 1) {
-                pathLine = Polyline().apply { setPoints(positions); color = Color.BLUE; width = 3f }
                 map.overlays.add(pathLine)
             }
             // ✅ Corrigé : controller est une propriété
