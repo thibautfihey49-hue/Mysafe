@@ -3,11 +3,11 @@ import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
 import android.media.*
-import android.net.wifi.p2p.WifiP2pInfo
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -19,13 +19,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class StreamingActivity : AppCompatActivity() {
     private lateinit var mode: String
     private lateinit var targetPhone: String
-    private var surfaceView: View? = null
+    private lateinit var surfaceView: SurfaceView
     private var cameraManager: android.hardware.camera2.CameraManager? = null
     private var cameraId: String? = null
     private var recording = AtomicBoolean(false)
     private var running = AtomicBoolean(true)
-    private var wifiP2pManager: WifiP2pManager? = null
-    private var channel: WifiP2pManager.Channel? = null
     private var serverSocket: ServerSocket? = null
     private var socket: Socket? = null
     private var receiveThread: Thread? = null
@@ -34,27 +32,6 @@ class StreamingActivity : AppCompatActivity() {
     private var mediaRecorder: MediaRecorder? = null
     private var outputStream: java.io.OutputStream? = null
     private var inputStream: java.io.InputStream? = null
-
-    private val wifiDirectReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
-                    val enabled = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1) == WifiP2pManager.WIFI_P2P_STATE_ENABLED
-                    if (!enabled) {
-                        Toast.makeText(this@StreamingActivity, "WiFi Direct non activé", Toast.LENGTH_SHORT).show()
-                        finish()
-                    }
-                }
-                WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    val info = intent.getParcelableExtra<WifiP2pInfo>("wifiP2pInfo")
-                    if (info?.groupFormed == true) {
-                        if (info.isGroupOwner) startServer()
-                        else connectToOwner(info.groupOwnerAddress)
-                    }
-                }
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,37 +43,23 @@ class StreamingActivity : AppCompatActivity() {
         surfaceView = findViewById(R.id.surface_view)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
 
-        wifiP2pManager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        channel = wifiP2pManager?.initialize(this, Looper.getMainLooper(), null)
-
-        val filter = IntentFilter()
-        filter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-        filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-        
-        // ✅ CORRIGÉ : Ajout du drapeau RECEIVER_NOT_EXPORTED
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(wifiDirectReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(wifiDirectReceiver, filter)
-        }
-
         findViewById<Button>(R.id.stop_btn).setOnClickListener { stopStreaming(); finish() }
 
         if (mode == "video") {
-            findViewById<TextView>(R.id.title_text).text = "📹 Streaming Vidéo (WiFi Direct)"
-            surfaceView?.visibility = View.VISIBLE
-            startCamera()
+            findViewById<TextView>(R.id.title_text).text = "📹 STREAMING VIDÉO — ACTIF"
+            surfaceView.visibility = View.VISIBLE
+            // ✅ LANCEMENT DIRECT — PAS D'ATTENTE
+            startVideoStreamingNow()
         } else {
-            findViewById<TextView>(R.id.title_text).text = "🎙️ Streaming Audio (WiFi Direct)"
-            surfaceView?.visibility = View.GONE
-            startAudio()
+            findViewById<TextView>(R.id.title_text).text = "🎙️ STREAMING AUDIO — ACTIF"
+            surfaceView.visibility = View.GONE
+            startAudioStreamingNow()
         }
 
         val stopFilter = IntentFilter("STOP_STREAMING")
         val stopReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) { stopStreaming(); finish() }
         }
-        // ✅ CORRIGÉ : Pareil pour le second receiver
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(stopReceiver, stopFilter, RECEIVER_NOT_EXPORTED)
         } else {
@@ -104,7 +67,19 @@ class StreamingActivity : AppCompatActivity() {
         }
     }
 
-    private fun startCamera() {
+    private fun startVideoStreamingNow() {
+        Toast.makeText(this, "📹 Caméra activée — Streaming en cours sur le port 8888", Toast.LENGTH_SHORT).show()
+        
+        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                startCameraAndRecord(holder)
+            }
+            override fun surfaceDestroyed(holder: SurfaceHolder) {}
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {}
+        })
+    }
+
+    private fun startCameraAndRecord(holder: SurfaceHolder) {
         try {
             cameraId = cameraManager?.cameraIdList?.firstOrNull {
                 cameraManager?.getCameraCharacteristics(it)
@@ -112,51 +87,57 @@ class StreamingActivity : AppCompatActivity() {
                     android.hardware.camera2.CameraMetadata.LENS_FACING_BACK
             } ?: cameraManager?.cameraIdList?.firstOrNull()
 
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this@StreamingActivity, "❌ Autorisation caméra manquante", Toast.LENGTH_SHORT).show()
+                return
+            }
 
             mediaRecorder = MediaRecorder()
             cameraManager?.openCamera(cameraId!!, object : android.hardware.camera2.CameraDevice.StateCallback() {
                 override fun onOpened(cam: android.hardware.camera2.CameraDevice) {
-                    cam.createCaptureSession(emptyList(), object : android.hardware.camera2.CameraCaptureSession.StateCallback() {
-                        override fun onConfigured(session: android.hardware.camera2.CameraCaptureSession) {
-                            startVideoStreaming()
+                    try {
+                        mediaRecorder?.apply {
+                            setPreviewDisplay(holder.surface)
+                            setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                            setVideoSize(320, 240)
+                            setVideoFrameRate(10)
+                            setVideoEncodingBitRate(256000)
+                            val tempFile = File(externalCacheDir, "stream_temp.mp4")
+                            setOutputFile(tempFile.absolutePath)
+                            prepare()
+                            start()
                         }
-                        override fun onConfigureFailed(session: android.hardware.camera2.CameraCaptureSession) {}
-                    }, null)
+                        startServerDirect()
+                        cam.close()
+                    } catch (e: Exception) {
+                        Toast.makeText(this@StreamingActivity, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                        cam.close()
+                    }
                 }
                 override fun onDisconnected(cam: android.hardware.camera2.CameraDevice) { cam.close() }
                 override fun onError(cam: android.hardware.camera2.CameraDevice, e: Int) { cam.close() }
             }, null)
-
-        } catch (e: android.hardware.camera2.CameraAccessException) { Toast.makeText(this, "Caméra inaccessible", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Erreur caméra: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    private fun startVideoStreaming() {
-        try {
-            mediaRecorder?.apply {
-                setVideoSource(MediaRecorder.VideoSource.SURFACE)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                setVideoSize(320, 240)
-                setVideoFrameRate(10)
-                setVideoEncodingBitRate(256000)
-                val tempFile = File(externalCacheDir, "stream_temp.mp4")
-                setOutputFile(tempFile.absolutePath)
-                prepare()
-            }
-            startServer()
-        } catch (e: Exception) { Toast.makeText(this, "Erreur vidéo: ${e.message}", Toast.LENGTH_SHORT).show() }
-    }
-
-    private fun startAudio() {
+    private fun startAudioStreamingNow() {
+        Toast.makeText(this, "🎙️ Micro activé — Streaming en cours sur le port 8888", Toast.LENGTH_SHORT).show()
+        
         val bufferSize = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "❌ Autorisation micro manquante", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
         recorder.startRecording()
         recording.set(true)
 
-        startServer()
+        startServerDirect()
 
         sendThread = Thread {
             val buffer = ByteArray(bufferSize)
@@ -169,31 +150,26 @@ class StreamingActivity : AppCompatActivity() {
         }.apply { start() }
     }
 
-    private fun startServer() {
+    private fun startServerDirect() {
         Thread {
             try {
                 serverSocket = ServerSocket(8888)
-                runOnUiThread { Toast.makeText(this, "En attente de connexion...", Toast.LENGTH_SHORT).show() }
-                socket = serverSocket?.accept()
-                outputStream = socket?.getOutputStream()
-                inputStream = socket?.getInputStream()
-                runOnUiThread { Toast.makeText(this, "✅ Connecté ! Streaming en cours", Toast.LENGTH_SHORT).show() }
-
-                if (mode == "audio") startAudioPlayback()
-
-            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Erreur connexion: ${e.message}", Toast.LENGTH_SHORT).show() } }
-        }.start()
-    }
-
-    private fun connectToOwner(address: InetAddress?) {
-        Thread {
-            try {
-                socket = Socket(address, 8888)
-                outputStream = socket?.getOutputStream()
-                inputStream = socket?.getInputStream()
-                runOnUiThread { Toast.makeText(this, "✅ Connecté ! Réception en cours", Toast.LENGTH_SHORT).show() }
-                if (mode == "audio") startAudioPlayback()
-            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Impossible de se connecter: ${e.message}", Toast.LENGTH_SHORT).show() } }
+                serverSocket?.soTimeout = 30000 // 30s max d'attente
+                runOnUiThread { Toast.makeText(this, "✅ Serveur prêt — Port 8888", Toast.LENGTH_SHORT).show() }
+                
+                try {
+                    socket = serverSocket?.accept()
+                    outputStream = socket?.getOutputStream()
+                    inputStream = socket?.getInputStream()
+                    runOnUiThread { Toast.makeText(this, "✅ CONNECTÉ ! Streaming actif", Toast.LENGTH_SHORT).show() }
+                    if (mode == "audio") startAudioPlayback()
+                } catch (e: SocketTimeoutException) {
+                    runOnUiThread { Toast.makeText(this, "⏹ Aucune connexion dans les 30s — En attente...", Toast.LENGTH_SHORT).show() }
+                    startServerDirect() // Réécoute indéfinie
+                }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
         }.start()
     }
 
@@ -241,5 +217,5 @@ class StreamingActivity : AppCompatActivity() {
         } catch (e: Exception) {}
     }
 
-    override fun onDestroy() { super.onDestroy(); stopStreaming(); unregisterReceiver(wifiDirectReceiver) }
+    override fun onDestroy() { super.onDestroy(); stopStreaming() }
 }
