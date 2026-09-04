@@ -27,5 +27,4 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("org.osmdroid:osmdroid-android:6.1.18")
 }

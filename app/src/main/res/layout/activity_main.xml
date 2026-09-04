@@ -2,45 +2,69 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:padding="10dp">
 
-    <org.osmdroid.views.MapView
-        android:id="@+id/map"
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_height="wrap_content"
+        android:text="📍 MySafe - Surveillance GPS"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="15dp"/>
+
+    <TextView
+        android:id="@+id/position_tv"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="En attente de position..."
+        android:textSize="14sp"
+        android:padding="15dp"
+        android:background="#F0F0F0"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📜 Historique"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:padding="8dp"
+        android:layout_marginTop="10dp"/>
 
     <ListView
         android:id="@+id/history_list"
         android:layout_width="match_parent"
-        android:layout_height="150dp"
-        android:background="#FFFFFF"/>
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:layout_marginTop="10dp">
 
         <Button
             android:id="@+id/start_btn"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Démarrer"/>
+            android:text="▶ Démarrer"/>
 
         <Button
             android:id="@+id/stop_btn"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Arrêter"/>
+            android:text="⏹ Arrêter"/>
 
         <Button
             android:id="@+id/camera_btn"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Caméra"/>
+            android:text="📹 Caméra"/>
     </LinearLayout>
 
 </LinearLayout>
