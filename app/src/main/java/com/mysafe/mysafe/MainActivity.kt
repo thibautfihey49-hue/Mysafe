@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Environment
 import android.preference.PreferenceManager
 import android.widget.*
 import org.osmdroid.config.Configuration
@@ -14,6 +15,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import java.io.File
 
 class MainActivity : Activity() {
     private lateinit var map: MapView
@@ -41,7 +43,15 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // ✅ osmdroid CONFIGURATION CORRIGÉE — dossier cache explicite
+        val osmdroidBase = File(getExternalFilesDir(null), "osmdroid")
+        osmdroidBase.mkdirs()
+        val osmdroidCache = File(osmdroidBase, "tiles")
+        osmdroidCache.mkdirs()
+        Configuration.getInstance().osmdroidBasePath = osmdroidBase
+        Configuration.getInstance().osmdroidTileCache = osmdroidCache
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
+
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
