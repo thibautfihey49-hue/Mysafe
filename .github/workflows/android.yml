@@ -5,17 +5,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        
+      - name: Generate Gradle Wrapper JAR automatically
+        run: |
+          mkdir -p gradle/wrapper
+          curl -L "https://services.gradle.org/distributions/gradle-8.6-bin.zip" -o gradle-8.6.zip
+          unzip -j gradle-8.6.zip "gradle-8.6/lib/gradle-wrapper-8.6.jar" -d gradle/wrapper/
+          mv gradle/wrapper/gradle-wrapper-8.6.jar gradle/wrapper/gradle-wrapper.jar
+          rm gradle-8.6.zip
+          ls -lh gradle/wrapper/
+          
       - name: Make gradlew executable
         run: chmod +x gradlew
+        
       - name: Build APK
         run: ./gradlew assembleDebug
+        
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
