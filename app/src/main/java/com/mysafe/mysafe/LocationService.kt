@@ -24,8 +24,8 @@ class LocationService : Service() {
         const val EXTRA_MY_PHONE = "my_phone"
         var isRunning = false
         var lastLocation: GeoPoint? = null
-        var lastSentLocation: Location? = null  // ✅ MÉMOIRE DERNIÈRE POSITION ENVOYÉE
-        const val MIN_DISTANCE_METERS = 10f     // ✅ 10m minimum entre CHAQUE envoi
+        var lastSentLocation: Location? = null
+        const val MIN_DISTANCE_METERS = 10f
         var targetPhoneNumber: String = ""
         var myPhoneNumber: String = ""
     }
@@ -39,19 +39,15 @@ class LocationService : Service() {
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
-            // ✅ VÉRIFICATION DOUBLE : seulement si + de 10m depuis DERNIER ENVOI
             lastSentLocation?.let { derniere ->
                 val distance = location.distanceTo(derniere)
                 if (distance < MIN_DISTANCE_METERS) {
-                    // 🔴 Trop proche → ON IGNORE, PAS D'ENVOI !
                     lastLocation = GeoPoint(location.latitude, location.longitude)
                     broadcastUpdate()
                     return
                 }
             }
-
-            // ✅ ✅ OK — + de 10m → ON ENVOIE
-            lastSentLocation = location  // Mémorise cette position comme dernière envoyée
+            lastSentLocation = location
             lastLocation = GeoPoint(location.latitude, location.longitude)
             sendLocationBySms(location.latitude, location.longitude)
             broadcastUpdate()
@@ -80,15 +76,14 @@ class LocationService : Service() {
         if (isRunning) return
         targetPhoneNumber = intent.getStringExtra(EXTRA_TARGET_PHONE) ?: ""
         myPhoneNumber = intent.getStringExtra(EXTRA_MY_PHONE) ?: ""
-        
-        // ✅ RÉINITIALISE la mémoire au démarrage
         lastSentLocation = null
-        
         startForeground(9999, createNotification())
         isRunning = true
 
+        // ✅ ENVOIE LA POSITION TOUT DE SUITE AU DÉMARRAGE
+        sendInitialLocation()
+
         try {
-            // ✅ Intervalle de temps = 0, distance = 10m
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 0,
@@ -104,12 +99,26 @@ class LocationService : Service() {
         } catch (e: SecurityException) {}
     }
 
+    // ✅ NOUVELLE FONCTION : PREMIÈRE POSITION IMMÉDIATE
+    private fun sendInitialLocation() {
+        try {
+            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            
+            lastKnown?.let {
+                lastSentLocation = it
+                lastLocation = GeoPoint(it.latitude, it.longitude)
+                sendLocationBySms(it.latitude, it.longitude)
+                broadcastUpdate()
+            }
+        } catch (e: SecurityException) {}
+    }
+
     private fun sendLocationBySms(lat: Double, lon: Double) {
         if (targetPhoneNumber.isBlank()) return
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val message = "MYSAFE:$lat:$lon:$time:${myPhoneNumber.takeLast(4)}"
         try {
-            // ✅ Port fixe 50006 pour SMS de données invisible
             smsManager.sendDataMessage(
                 targetPhoneNumber,
                 null,
@@ -134,7 +143,7 @@ class LocationService : Service() {
 
     private fun stopMonitoring() {
         isRunning = false
-        lastSentLocation = null  // ✅ Efface la mémoire à l'arrêt
+        lastSentLocation = null
         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
