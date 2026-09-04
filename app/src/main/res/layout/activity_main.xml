@@ -115,12 +115,11 @@
             android:layout_marginTop="4dp"/>
     </LinearLayout>
 
-    <!-- 🗺️ CARTE PRINCIPALE — ICI ON PREND TOUT L'ESPACE ! -->
+    <!-- 🗺️ CARTE PRINCIPALE — GRAND CARRÉ ! -->
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
-        
+        android:layout_height="260dp"
         android:layout_marginBottom="12dp"
         android:background="#E5E7EB"
         android:elevation="2dp"/>
@@ -136,7 +135,7 @@
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            
+            android:layout_weight="1"
             android:text="📋 Historique des positions"
             android:textSize="15sp"
             android:textStyle="bold"
@@ -154,11 +153,12 @@
             android:paddingRight="16dp"/>
     </LinearLayout>
 
-    <!-- 📜 LISTE HISTORIQUE -->
+    <!-- 📜 LISTE HISTORIQUE — FIXÉE, PAS DÉBORDE ! -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:fillViewport="true">
+        android:layout_height="100dp"
+        android:fillViewport="true"
+        android:layout_marginBottom="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -173,7 +173,7 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- 🔒 MENU CACHÉ — TOUJOURS EN BAS ! -->
+    <!-- 🔒 MENU CACHÉ — TOUJOURS EN BAS, JAMAIS PERDU ! -->
     <LinearLayout
         android:id="@+id/hidden_menu"
         android:layout_width="match_parent"
@@ -181,7 +181,7 @@
         android:orientation="vertical"
         android:background="@drawable/bg_menu_hidden"
         android:padding="16dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="4dp"
         android:visibility="gone"
         android:elevation="2dp">
 
