@@ -22,8 +22,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopBtn: Button
     private lateinit var cameraBtn: Button
     private lateinit var historyList: ListView
-    private var marker: Marker? = null
     private lateinit var historyAdapter: ArrayAdapter<String>
+    private var marker: Marker? = null
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
                 val lon = intent.getDoubleExtra("lon", 0.0)
                 val time = intent.getStringExtra("time") ?: ""
                 updateMap(lat, lon, time)
-                // ✅ AJOUT : Historique
                 historyAdapter.insert("$time | ${String.format("%.6f", lat)}, ${String.format("%.6f", lon)}", 0)
                 if (historyAdapter.count > 50) historyAdapter.remove(historyAdapter.getItem(49))
             }
@@ -52,9 +51,8 @@ class MainActivity : AppCompatActivity() {
         startBtn = findViewById(R.id.start_btn)
         stopBtn = findViewById(R.id.stop_btn)
         cameraBtn = findViewById(R.id.camera_btn)
-
-        // ✅ AJOUT : Initialisation liste
         historyList = findViewById(R.id.history_list)
+
         historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         historyList.adapter = historyAdapter
 
