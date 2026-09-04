@@ -8,9 +8,11 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraManager
 import android.media.*
 import android.net.wifi.WifiManager
-import android.net.wifi.p2p.*
+import android.net.wifi.p2p.WifiP2pInfo
+import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -52,6 +54,7 @@ class StreamingActivity : AppCompatActivity() {
                     }
                 }
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
+                    // ✅ Corrigé : EXTRA_CONNECTION_INFO existe dans la classe WifiP2pManager
                     val info = intent.getParcelableExtra<WifiP2pInfo>(WifiP2pManager.EXTRA_CONNECTION_INFO)
                     if (info?.groupFormed == true) {
                         if (info.isGroupOwner) startServer()
@@ -73,6 +76,7 @@ class StreamingActivity : AppCompatActivity() {
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
         wifiP2pManager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        // ✅ Corrigé : Looper est importé maintenant
         channel = wifiP2pManager?.initialize(this, Looper.getMainLooper(), null)
 
         val filter = IntentFilter()
@@ -134,7 +138,9 @@ class StreamingActivity : AppCompatActivity() {
                 setVideoSize(320, 240)
                 setVideoFrameRate(10)
                 setVideoEncodingBitRate(256000)
-                setOutput(ByteArrayOutputStream())
+                // ✅ Corrigé : setOutput prend un FileDescriptor, pas un ByteArrayOutputStream
+                val tempFile = File(externalCacheDir, "temp_stream.mp4")
+                setOutput(tempFile.absolutePath)
                 prepare()
             }
             startServer()

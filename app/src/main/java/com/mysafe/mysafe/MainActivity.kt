@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.provider.Settings
 import android.view.View
 import android.widget.*
@@ -49,12 +50,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // ✅ Corrigé : PreferenceManager depuis android.preference
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
         
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         map.setMultiTouchControls(true)
-        map.controller().setZoom(15.0)
+        // ✅ Corrigé : .controller est une propriété, pas une fonction
+        map.controller?.setZoom(15.0)
         
         statusText = findViewById(R.id.status)
         targetPhoneInput = findViewById(R.id.target_phone)
@@ -162,7 +165,8 @@ class MainActivity : AppCompatActivity() {
                 pathLine = Polyline().apply { setPoints(positions); color = Color.BLUE; width = 3f }
                 map.overlays.add(pathLine)
             }
-            map.controller().animateTo(point)
+            // ✅ Corrigé : controller est une propriété
+            map.controller?.animateTo(point)
             map.invalidate()
             lastUpdateText.text = "📍 MàJ : $time — Depuis : $from"
         }

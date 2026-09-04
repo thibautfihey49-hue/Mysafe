@@ -11,14 +11,15 @@ class SmsReceiver : BroadcastReceiver() {
         if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
         context ?: return
 
-        val messages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        val messages: Array<SmsMessage> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             Telephony.Sms.Intents.getMessagesFromIntent(intent)
         } else {
             @Suppress("DEPRECATION")
             val pdus = intent.extras?.get("pdus") as? Array<*>
-            pdus?.map { SmsMessage.createFromPdu(it as ByteArray) } ?: emptyList()
+            pdus?.map { SmsMessage.createFromPdu(it as ByteArray) }?.toTypedArray() ?: emptyArray()
         }
 
+        // ✅ Corrigé : boucle sur Array<SmsMessage>
         for (msg in messages) {
             val body = msg.messageBody ?: ""
             val sender = msg.originatingAddress ?: ""
