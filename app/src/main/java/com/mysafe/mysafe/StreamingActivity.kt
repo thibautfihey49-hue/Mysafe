@@ -2,14 +2,17 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.DialogInterface
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.hardware.Camera
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
-import android.os.Bundle
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -27,14 +30,18 @@ class StreamingActivity : AppCompatActivity() {
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var flipBtn: Button
     private lateinit var micBtn: Button
-    private lateinit var hideIndicatorsBtn: Button
+    private lateinit var testSoundBtn: Button
+    private lateinit var statusText: TextView
     private var camera: Camera? = null
     private var cameraFacing = Camera.CameraInfo.CAMERA_FACING_BACK
     private var microphoneActive = AtomicBoolean(true)
+    private var soundTestActive = AtomicBoolean(false)
     private var audioRecord: AudioRecord? = null
+    private var audioTrack: AudioTrack? = null
     private var audioJob: Job? = null
     private val sampleRate = 16000
-    private val channelConfig = AudioFormat.CHANNEL_IN_MONO
+    private val channelConfigIn = AudioFormat.CHANNEL_IN_MONO
+    private val channelConfigOut = AudioFormat.CHANNEL_OUT_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
     private var bufferSize = 0
 
@@ -47,7 +54,8 @@ class StreamingActivity : AppCompatActivity() {
         surfaceHolder = surfaceView.holder
         flipBtn = findViewById(R.id.flip_btn)
         micBtn = findViewById(R.id.mic_btn)
-        hideIndicatorsBtn = findViewById(R.id.hide_indicators_btn)
+        testSoundBtn = findViewById(R.id.test_sound_btn)
+        statusText = findViewById(R.id.status_text)
 
         findViewById<Button>(R.id.stop_btn).setOnClickListener {
             stopAll()
@@ -56,25 +64,15 @@ class StreamingActivity : AppCompatActivity() {
 
         flipBtn.setOnClickListener { flipCamera() }
 
-        micBtn.setOnClickListener {
-            if (microphoneActive.get()) {
-                stopMicrophone()
-                microphoneActive.set(false)
-                micBtn.text = "🎙️ Micro: OFF"
-                micBtn.setBackgroundColor(0xFF777777.toInt())
-            } else {
-                startMicrophone()
-                microphoneActive.set(true)
-                micBtn.text = "🎙️ Micro: ON"
-                micBtn.setBackgroundColor(0xFF66BB6A.toInt())
-            }
-        }
+        micBtn.setOnClickListener { toggleMicrophone() }
 
-        hideIndicatorsBtn.setOnClickListener {
+        testSoundBtn.setOnClickListener { toggleSoundTest() }
+
+        findViewById<Button>(R.id.hide_indicators_btn).setOnClickListener {
             showHideIndicatorsGuide()
         }
 
-        bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+        bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -95,37 +93,13 @@ class StreamingActivity : AppCompatActivity() {
         })
     }
 
-    private fun showHideIndicatorsGuide() {
-        AlertDialog.Builder(this)
-            .setTitle("👁️ Masquer les témoins caméra/micro")
-            .setMessage(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    "⚠️ Ces points verts sont des indicateurs système d'Android.\n\n" +
-                    "Pour les masquer :\n" +
-                    "1. Allez dans ⚙️ Paramètres du téléphone\n" +
-                    "2. Sécurité et confidentialité\n" +
-                    "3. Indicateurs et autorisations\n" +
-                    "4. Désactivez \"Afficher les indicateurs d'utilisation\"\n\n" +
-                    "→ C'est une manipulation à faire UNE SEULE fois dans les paramètres du téléphone, pas dans l'application."
-                } else {
-                    "✅ Sur cette version d'Android, il n'y a pas de témoins visibles !"
-                }
-            )
-            .setPositiveButton("⚙️ Ouvrir Paramètres") { _, _ ->
-                val intent = Intent(Settings.ACTION_PRIVACY_SETTINGS)
-                startActivity(intent)
-            }
-            .setNegativeButton("Fermer", null)
-            .show()
-    }
-
     private fun startEverything() {
         startCameraPreview(surfaceHolder)
         startMicrophone()
         microphoneActive.set(true)
         micBtn.text = "🎙️ Micro: ON"
         micBtn.setBackgroundColor(0xFF66BB6A.toInt())
-        Toast.makeText(this, "✅ CAMÉRA + MICRO ACTIFS", Toast.LENGTH_SHORT).show()
+        statusText.text = "✅ Caméra + Micro actifs — Cliquez 'Tester Son' pour entendre"
     }
 
     private fun startCameraPreview(holder: SurfaceHolder) {
@@ -139,6 +113,7 @@ class StreamingActivity : AppCompatActivity() {
 
             camera = Camera.open(cameraId)
             
+            // ✅ CORRECTION DEFINITIVE DE L'ORIENTATION
             val rotation = windowManager.defaultDisplay.rotation
             val degrees = when (rotation) {
                 Surface.ROTATION_0 -> 0
@@ -149,7 +124,7 @@ class StreamingActivity : AppCompatActivity() {
             }
             val info = Camera.CameraInfo()
             Camera.getCameraInfo(cameraId, info)
-            val result = when (info.facing) {
+            var result = when (info.facing) {
                 Camera.CameraInfo.CAMERA_FACING_FRONT -> (info.orientation + degrees) % 360
                 Camera.CameraInfo.CAMERA_FACING_BACK -> (info.orientation - degrees + 360) % 360
                 else -> 0
@@ -158,38 +133,111 @@ class StreamingActivity : AppCompatActivity() {
             
             camera?.setPreviewDisplay(holder)
             camera?.startPreview()
+
+            val camName = if (cameraFacing == Camera.CameraInfo.CAMERA_FACING_BACK) "arrière" else "avant"
+            statusText.text = "✅ Caméra $camName active — Micro prêt"
         } catch (e: Exception) {
             Toast.makeText(this, "❌ Erreur caméra: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun startMicrophone() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            statusText.text = "❌ Autorisation micro manquante"
+            return
+        }
         
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRate,
-            channelConfig,
+            channelConfigIn,
             audioFormat,
             bufferSize
         )
         audioRecord?.startRecording()
         microphoneActive.set(true)
+        statusText.text = "✅ Micro ENREGISTRE — cliquez 'Tester Son' pour ECOUTER"
+    }
 
+    private fun toggleSoundTest() {
+        if (soundTestActive.get()) {
+            stopSoundTest()
+        } else {
+            startSoundTest()
+        }
+    }
+
+    private fun startSoundTest() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+
+        soundTestActive.set(true)
+        testSoundBtn.text = "🔊 Arrêter"
+        testSoundBtn.setBackgroundColor(0xFF4CAF50.toInt())
+        statusText.text = "🔊 ECOUTE EN DIRECT — Parle ! Tu devrais t'entendre !"
+
+        // ✅ Initialisation du lecteur audio pour DIFFUSER le son capturé
+        audioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(channelConfigOut)
+                    .setEncoding(audioFormat)
+                    .build()
+            )
+            .setBufferSizeInBytes(bufferSize)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+
+        audioTrack?.play()
+
+        // ✅ BOUCLE EN TEMPS RÉEL : Capturer -> Diffuser = tu t'entends INSTANTANÉMENT
         audioJob = CoroutineScope(Dispatchers.IO).launch {
             val buffer = ByteArray(bufferSize)
-            while (microphoneActive.get() && isActive) {
+            while (soundTestActive.get() && isActive) {
                 val read = audioRecord?.read(buffer, 0, bufferSize) ?: -1
                 if (read > 0) {
-                    // Données audio capturées
+                    audioTrack?.write(buffer, 0, read)
                 }
             }
         }
     }
 
-    private fun stopMicrophone() {
-        microphoneActive.set(false)
+    private fun stopSoundTest() {
+        soundTestActive.set(false)
         audioJob?.cancel()
+        try {
+            audioTrack?.stop()
+            audioTrack?.release()
+            audioTrack = null
+        } catch (e: Exception) {}
+        testSoundBtn.text = "🔊 Tester Son"
+        testSoundBtn.setBackgroundColor(0xFFFF9800.toInt())
+        statusText.text = "✅ Test son terminé — Micro toujours actif"
+    }
+
+    private fun toggleMicrophone() {
+        if (microphoneActive.get()) {
+            stopSoundTest()
+            stopMicrophone()
+            microphoneActive.set(false)
+            micBtn.text = "🎙️ Micro: OFF"
+            micBtn.setBackgroundColor(0xFF777777.toInt())
+            statusText.text = "⏹ Micro désactivé"
+        } else {
+            startMicrophone()
+            microphoneActive.set(true)
+            micBtn.text = "🎙️ Micro: ON"
+            micBtn.setBackgroundColor(0xFF66BB6A.toInt())
+        }
+    }
+
+    private fun stopMicrophone() {
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -226,8 +274,28 @@ class StreamingActivity : AppCompatActivity() {
     }
 
     private fun stopAll() {
+        stopSoundTest()
         stopMicrophone()
         releaseCamera()
+    }
+
+    private fun showHideIndicatorsGuide() {
+        AlertDialog.Builder(this)
+            .setTitle("👁️ Masquer les témoins")
+            .setMessage(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    "⚠️ Ces points verts sont des indicateurs système.\n\n" +
+                    "Pour les masquer :\n" +
+                    "⚙️ Paramètres → Sécurité et confidentialité → Indicateurs et autorisations → Désactiver \"Afficher les indicateurs d'utilisation\""
+                } else {
+                    "✅ Sur cette version d'Android, pas de témoins visibles."
+                }
+            )
+            .setPositiveButton("⚙️ Paramètres") { _, _ ->
+                startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))
+            }
+            .setNegativeButton("Fermer", null)
+            .show()
     }
 
     override fun onRequestPermissionsResult(

@@ -41,7 +41,7 @@
         <Button
             android:id="@+id/flip_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:text="🔄 Caméra"
             android:layout_marginEnd="2dp"
@@ -52,7 +52,7 @@
         <Button
             android:id="@+id/mic_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:text="🎙️ Micro: ON"
             android:layout_marginEnd="2dp"
@@ -61,11 +61,22 @@
             android:textSize="13sp"/>
 
         <Button
+            android:id="@+id/test_sound_btn"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
+            android:text="🔊 Tester Son"
+            android:layout_marginEnd="2dp"
+            android:background="#FF9800"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"/>
+
+        <Button
             android:id="@+id/hide_indicators_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
-            android:text="👁️ Masquer témoins"
+            android:text="👁️ Témoins"
             android:layout_marginEnd="2dp"
             android:background="#9C27B0"
             android:textColor="#FFFFFF"
@@ -74,7 +85,7 @@
         <Button
             android:id="@+id/stop_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:text="⏹ RETOUR"
             android:layout_marginStart="2dp"
@@ -82,5 +93,16 @@
             android:textColor="#FFFFFF"
             android:textSize="13sp"/>
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✅ Prêt — Parle pour tester le son"
+        android:textColor="#AAAAAA"
+        android:textSize="11sp"
+        android:gravity="center"
+        android:padding="4dp"
+        android:background="#111111"/>
 
 </LinearLayout>
