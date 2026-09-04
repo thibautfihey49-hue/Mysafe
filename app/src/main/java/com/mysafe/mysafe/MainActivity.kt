@@ -236,7 +236,6 @@ class MainActivity : AppCompatActivity() {
             history.add(item)
             
             runOnUiThread {
-                // 📏 LIGNE HISTORIQUE MODERNE : MOITIÉ TEXTE / MOITIÉ MINI-CARTE
                 val entry = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.HORIZONTAL
                     setPadding(12, 12, 12, 12)
@@ -246,13 +245,8 @@ class MainActivity : AppCompatActivity() {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply { setMargins(0, 0, 0, 10) }
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        setColor(0xFFFFFFFF.toInt())
-                        cornerRadius = 16f
-                    }
                 }
 
-                // 📍 MOITIÉ GAUCHE : Heure + Adresse
                 val textPart = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
@@ -286,7 +280,6 @@ class MainActivity : AppCompatActivity() {
                 textPart.addView(timeText)
                 textPart.addView(addrText)
 
-                // 🗺️ MOITIÉ DROITE : Mini-carte
                 val miniMap = MapView(this@MainActivity).apply {
                     setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
                     setMultiTouchControls(false)
