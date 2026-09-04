@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:elevation="16dp"
+    android:padding="4dp"
+    android:layout_margin="4dp">
+
+    <org.osmdroid.views.MapView
+        android:id="@+id/float_map"
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:background="#E5E7EB"
+        android:clickable="true"/>
+
+    <Button
+        android:id="@+id/btn_close_float"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="✖️ Fermer la carte flottante"
+        android:backgroundTint="#EF4444"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:layout_marginTop="4dp"/>
+</LinearLayout>
