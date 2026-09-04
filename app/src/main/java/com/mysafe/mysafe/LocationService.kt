@@ -87,57 +87,32 @@ class LocationService : android.app.Service() {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "❌ Autorisations manquantes")
             return
         }
 
-        locationManager?.requestLocationUpdates(
-            LocationManager.GPS_PROVIDER,
-            60000L,
-            0f,
-            listener!!
-        )
-        locationManager?.requestLocationUpdates(
-            LocationManager.NETWORK_PROVIDER,
-            60000L,
-            0f,
-            listener!!
-        )
+        locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000L, 0f, listener!!)
+        locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000L, 0f, listener!!)
     }
 
     private fun handleNewLocation(location: Location) {
         CoroutineScope(Dispatchers.IO).launch {
             val time = SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(Date())
             val address = getAddress(location.latitude, location.longitude)
+            val position = Position(location.latitude, location.longitude, time, address)
 
-            val position = Position(
-                latitude = location.latitude,
-                longitude = location.longitude,
-                time = time,
-                address = address
-            )
-
-            // ✅ IGNORER SI MÊME POSITION — PAS DE DOUBLON
+            // ✅ PAS DE DOUBLON
             if (position.isSameAs(latestPosition)) {
                 Log.d(TAG, "⏭ Position identique — ignorée")
                 return@launch
             }
 
-            // ✅ NOUVELLE POSITION DIFFÉRENTE → AJOUT
             synchronized(positions) {
                 positions.add(0, position)
                 if (positions.size > 100) positions.removeAt(positions.size - 1)
             }
-
             latestPosition = position
             Log.d(TAG, "📍 Nouvelle position: $time - $address")
 
@@ -155,29 +130,19 @@ class LocationService : android.app.Service() {
     private fun getAddress(lat: Double, lon: Double): String {
         return try {
             val geocoder = Geocoder(this, Locale.FRANCE)
-            val addresses: MutableList<Address>? = geocoder.getFromLocation(lat, lon, 1)
+            val addresses = geocoder.getFromLocation(lat, lon, 1)
             if (!addresses.isNullOrEmpty()) {
                 val addr = addresses[0]
                 val parts = mutableListOf<String>()
-                for (i in 0..addr.maxAddressLineIndex) {
-                    parts.add(addr.getAddressLine(i))
-                }
+                for (i in 0..addr.maxAddressLineIndex) parts.add(addr.getAddressLine(i))
                 if (parts.isNotEmpty()) parts.joinToString(", ") else "Coordonnées seulement"
             } else "Adresse introuvable"
-        } catch (e: IOException) {
-            "Erreur adresse: ${e.message}"
-        }
+        } catch (e: IOException) { "Erreur adresse: ${e.message}" }
     }
 
     private fun buildNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MySafe — Surveillance active")
             .setContentText("Mise à jour toutes les minutes")
@@ -192,18 +157,13 @@ class LocationService : android.app.Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "MySafe Localisation",
-                android.app.NotificationManager.IMPORTANCE_MIN
-            ).apply {
+            val channel = NotificationChannel(CHANNEL_ID, "MySafe Localisation", android.app.NotificationManager.IMPORTANCE_MIN).apply {
                 description = "Service de suivi de position"
                 setShowBadge(false)
                 enableVibration(false)
                 setSound(null, null)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
@@ -211,9 +171,7 @@ class LocationService : android.app.Service() {
         super.onDestroy()
         running.set(false)
         isRunning.set(false)
-        try {
-            locationManager?.removeUpdates(listener!!)
-        } catch (e: Exception) {}
+        try { locationManager?.removeUpdates(listener!!) } catch (e: Exception) {}
         Log.d(TAG, "⏹ Service arrêté")
     }
 

@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
 
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
         map = findViewById(R.id.map)
+        map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
         map.controller?.setZoom(15.0)
         map.isTilesScaledToDpi = true
@@ -63,27 +65,20 @@ class MainActivity : AppCompatActivity() {
         stopBtn = findViewById(R.id.stop_btn)
         streamBtn = findViewById(R.id.stream_btn)
 
-        historyAdapter = PositionHistoryAdapter { position ->
-            openInGoogleMaps(position.latitude, position.longitude)
-        }
+        historyAdapter = PositionHistoryAdapter { pos -> openInGoogleMaps(pos.latitude, pos.longitude) }
         historyList.adapter = historyAdapter
         historyList.layoutManager = LinearLayoutManager(this)
 
         startBtn.setOnClickListener { startService() }
         stopBtn.setOnClickListener { stopService() }
-        streamBtn.setOnClickListener {
-            startActivity(Intent(this, StreamingActivity::class.java))
-        }
+        streamBtn.setOnClickListener { startActivity(Intent(this, StreamingActivity::class.java)) }
 
         updateButtons()
         requestAllPermissions()
 
         val filter = IntentFilter(LocationService.ACTION_NEW_POSITION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(positionReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(positionReceiver, filter)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(positionReceiver, filter, RECEIVER_NOT_EXPORTED)
+        else registerReceiver(positionReceiver, filter)
 
         refreshHistory()
     }
@@ -92,7 +87,6 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val point = GeoPoint(lat, lon)
             map.controller?.animateTo(point)
-
             if (positionMarker == null) {
                 positionMarker = Marker(map)
                 positionMarker?.icon = ContextCompat.getDrawable(this, android.R.drawable.ic_menu_mylocation)
@@ -102,7 +96,6 @@ class MainActivity : AppCompatActivity() {
             positionMarker?.position = point
             positionMarker?.title = "Position actuelle"
             positionMarker?.snippet = "$address\n$time"
-
             positionText.text = "📍 $lat, $lon"
             refreshHistory()
         }
@@ -124,12 +117,8 @@ class MainActivity : AppCompatActivity() {
         val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
         val intent = Intent(Intent.ACTION_VIEW, uri)
         intent.setPackage("com.google.android.apps.maps")
-        try {
-            startActivity(intent)
-        } catch (e: Exception) {
-            val webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lon")
-            startActivity(Intent(Intent.ACTION_VIEW, webUri))
-        }
+        try { startActivity(intent) }
+        catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lon"))) }
     }
 
     private fun startService() {
@@ -139,18 +128,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val intent = Intent(this, LocationService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        Toast.makeText(this, "✅ Surveillance DÉMARRÉE — Mise à jour toutes les minutes", Toast.LENGTH_SHORT).show()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
+        Toast.makeText(this, "✅ Surveillance DÉMARRÉE", Toast.LENGTH_SHORT).show()
         updateButtons()
     }
 
     private fun stopService() {
-        val intent = Intent(this, LocationService::class.java)
-        stopService(intent)
+        stopService(Intent(this, LocationService::class.java))
         Toast.makeText(this, "⏹ Surveillance ARRÊTÉE", Toast.LENGTH_SHORT).show()
         updateButtons()
     }
@@ -164,89 +149,46 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestAllPermissions() {
-        val neededPermissions = mutableListOf(
+        val needed = mutableListOf(
+            Manifest.permission.INTERNET,
+            Manifest.permission.ACCESS_NETWORK_STATE,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            neededPermissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val toRequest = neededPermissions.filter {
-            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }.toTypedArray()
-        if (toRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, toRequest, 100)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) needed.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        val toRequest = needed.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
+        if (toRequest.isNotEmpty()) ActivityCompat.requestPermissions(this, toRequest, 100)
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            Toast.makeText(this,
-                if (allGranted) "✅ Autorisations accordées" else "⚠️ Certaines autorisations manquent",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+    override fun onRequestPermissionsResult(rq: Int, perms: Array<out String>, res: IntArray) {
+        super.onRequestPermissionsResult(rq, perms, res)
+        if (rq == 100) Toast.makeText(this, if (res.all { it == PackageManager.PERMISSION_GRANTED }) "✅ Autorisations accordées" else "⚠️ Certaines autorisations manquent", Toast.LENGTH_SHORT).show()
     }
 
-    override fun onResume() {
-        super.onResume()
-        map.onResume()
-        updateButtons()
-        refreshHistory()
-    }
+    override fun onResume() { super.onResume(); map.onResume(); updateButtons(); refreshHistory() }
+    override fun onPause() { super.onPause(); map.onPause() }
+    override fun onDestroy() { super.onDestroy(); unregisterReceiver(positionReceiver) }
 
-    override fun onPause() {
-        super.onPause()
-        map.onPause()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterReceiver(positionReceiver)
-    }
-
-    inner class PositionHistoryAdapter(
-        private val onItemClick: (LocationService.Position) -> Unit
-    ) : RecyclerView.Adapter<PositionHistoryAdapter.ViewHolder>() {
+    inner class PositionHistoryAdapter(private val onClick: (LocationService.Position) -> Unit) : RecyclerView.Adapter<PositionHistoryAdapter.ViewHolder>() {
         private var data = listOf<LocationService.Position>()
-
-        fun updateData(newData: List<LocationService.Position>) {
-            data = newData
-            notifyDataSetChanged()
+        fun updateData(newData: List<LocationService.Position>) { data = newData; notifyDataSetChanged() }
+        override fun onCreateViewHolder(p: ViewGroup, t: Int) = ViewHolder(LayoutInflater.from(p.context).inflate(R.layout.item_position, p, false))
+        override fun onBindViewHolder(h: ViewHolder, i: Int) {
+            val pos = data[i]
+            h.time.text = pos.time
+            h.address.text = "🏠 ${pos.address}"
+            h.coords.text = "📍 ${String.format("%.6f", pos.latitude)}, ${String.format("%.6f", pos.longitude)}"
+            h.mapsLink.setOnClickListener { onClick(pos) }
         }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_position, parent, false)
-            return ViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val pos = data[position]
-            holder.time.text = pos.time
-            holder.address.text = "🏠 ${pos.address}"
-            holder.coords.text = "📍 ${String.format("%.6f", pos.latitude)}, ${String.format("%.6f", pos.longitude)}"
-            holder.mapsLink.setOnClickListener { onItemClick(pos) }
-        }
-
-        override fun getItemCount(): Int = data.size
-
-        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-            val time: TextView = view.findViewById(R.id.item_time)
-            val address: TextView = view.findViewById(R.id.item_address)
-            val coords: TextView = view.findViewById(R.id.item_coords)
-            val mapsLink: TextView = view.findViewById(R.id.item_maps_link)
+        override fun getItemCount() = data.size
+        inner class ViewHolder(v: View) : RecyclerView.ViewHolder(v) {
+            val time: TextView = v.findViewById(R.id.item_time)
+            val address: TextView = v.findViewById(R.id.item_address)
+            val coords: TextView = v.findViewById(R.id.item_coords)
+            val mapsLink: TextView = v.findViewById(R.id.item_maps_link)
         }
     }
 }

@@ -11,50 +11,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🕐 Heure"
-            android:textSize="12sp"
-            android:textColor="#666666"/>
-
-        <TextView
-            android:id="@+id/item_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--:--:--"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:textColor="#2E7D32"/>
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:text="🕐 Heure" android:textSize="12sp" android:textColor="#666666"/>
+        <TextView android:id="@+id/item_time" android:text="--:--:--" android:textSize="13sp" android:textStyle="bold" android:textColor="#2E7D32"/>
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/item_address"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🏠 Adresse inconnue"
-        android:textSize="13sp"
-        android:layout_marginTop="4dp"/>
-
-    <TextView
-        android:id="@+id/item_coords"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="📍 0.000000, 0.000000"
-        android:textSize="11sp"
-        android:textColor="#888888"
-        android:layout_marginTop="2dp"/>
-
-    <TextView
-        android:id="@+id/item_maps_link"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🔗 Ouvrir dans Google Maps"
-        android:textSize="12sp"
-        android:textColor="#2196F3"
-        android:layout_marginTop="4dp"
-        android:paddingTop="4dp"/>
-
+    <TextView android:id="@+id/item_address" android:text="🏠 Adresse inconnue" android:textSize="13sp" android:layout_marginTop="4dp"/>
+    <TextView android:id="@+id/item_coords" android:text="📍 0.000000, 0.000000" android:textSize="11sp" android:textColor="#888888" android:layout_marginTop="2dp"/>
+    <TextView android:id="@+id/item_maps_link" android:text="🔗 Ouvrir dans Google Maps" android:textSize="12sp" android:textColor="#2196F3" android:layout_marginTop="4dp" android:paddingTop="4dp"/>
 </LinearLayout>
