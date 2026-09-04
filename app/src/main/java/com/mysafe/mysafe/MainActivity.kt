@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.view.LayoutInflater
@@ -116,16 +115,28 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() { super.onPause(); map.onPause() }
     override fun onDestroy() { super.onDestroy(); unregisterReceiver(receiver) }
 
-    inner class HistoryAdapter : RecyclerView.Adapter<HistoryAdapter.VH>() {
+    inner class HistoryAdapter : RecyclerView.Adapter<HistoryAdapter.ViewHolder>() {
         private var data = listOf<LocationService.Position>()
-        fun setData(list: List<LocationService.Position>) { data = list; notifyDataSetChanged() }
-        override fun onCreateViewHolder(p: ViewGroup, t: Int) = VH(LayoutInflater.from(p.context).inflate(R.layout.item_position, p, false))
-        override fun onBindViewHolder(h: VH, i: Int) = h.bind(data[i])
-        override fun getItemCount() = data.size
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            fun bind(p: LocationService.Position) {
-                (v.findViewById<TextView>(R.id.item_text)).text = "${p.time} | ${String.format("%.6f", p.lat)}, ${String.format("%.6f", p.lon)}"
-            }
+
+        fun setData(list: List<LocationService.Position>) {
+            data = list
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_position, parent, false)
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val pos = data[position]
+            holder.textView.text = "${pos.time} | ${String.format("%.6f", pos.lat)}, ${String.format("%.6f", pos.lon)}"
+        }
+
+        override fun getItemCount(): Int = data.size
+
+        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val textView: TextView = view.findViewById(R.id.item_text)
         }
     }
 }
