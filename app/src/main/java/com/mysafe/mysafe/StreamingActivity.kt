@@ -46,7 +46,6 @@ class StreamingActivity : AppCompatActivity() {
                     }
                 }
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    // ✅ CORRIGÉ : Utilisation de la bonne clé
                     val info = intent.getParcelableExtra<WifiP2pInfo>("wifiP2pInfo")
                     if (info?.groupFormed == true) {
                         if (info.isGroupOwner) startServer()
@@ -73,7 +72,13 @@ class StreamingActivity : AppCompatActivity() {
         val filter = IntentFilter()
         filter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
         filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-        registerReceiver(wifiDirectReceiver, filter)
+        
+        // ✅ CORRIGÉ : Ajout du drapeau RECEIVER_NOT_EXPORTED
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wifiDirectReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(wifiDirectReceiver, filter)
+        }
 
         findViewById<Button>(R.id.stop_btn).setOnClickListener { stopStreaming(); finish() }
 
@@ -87,10 +92,16 @@ class StreamingActivity : AppCompatActivity() {
             startAudio()
         }
 
-        val intentFilter = IntentFilter("STOP_STREAMING")
-        registerReceiver(object : BroadcastReceiver() {
+        val stopFilter = IntentFilter("STOP_STREAMING")
+        val stopReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) { stopStreaming(); finish() }
-        }, intentFilter)
+        }
+        // ✅ CORRIGÉ : Pareil pour le second receiver
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(stopReceiver, stopFilter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(stopReceiver, stopFilter)
+        }
     }
 
     private fun startCamera() {
@@ -129,7 +140,6 @@ class StreamingActivity : AppCompatActivity() {
                 setVideoSize(320, 240)
                 setVideoFrameRate(10)
                 setVideoEncodingBitRate(256000)
-                // ✅ CORRIGÉ : Utilisation de setOutputFile(FileDescriptor)
                 val tempFile = File(externalCacheDir, "stream_temp.mp4")
                 setOutputFile(tempFile.absolutePath)
                 prepare()
