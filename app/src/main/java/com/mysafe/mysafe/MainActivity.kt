@@ -45,9 +45,8 @@ class MainActivity : AppCompatActivity() {
     private var positionMarker: Marker? = null
     private var titleClickCount = 0
     
-    // ✅ Historique SANS DOUBLONS
     private val history = mutableListOf<HistoryItem>()
-    private val MIN_HISTORY_DISTANCE_METERS = 50f  // ✅ Même rue = pas de doublon
+    private val MIN_HISTORY_DISTANCE_METERS = 50f
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -187,78 +186,79 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ AJOUT À L'HISTORIQUE SANS DOUBLONS
     private fun addToHistory(lat: Double, lon: Double, time: String, from: String) {
-        runOnUiThread {
-            // Vérifie si c'est trop proche de la dernière entrée
-            val lastItem = history.lastOrNull()
-            if (lastItem != null) {
-                val distance = FloatArray(1)
-                android.location.Location.distanceBetween(
-                    lastItem.lat, lastItem.lon, lat, lon, distance
-                )
-                if (distance[0] < MIN_HISTORY_DISTANCE_METERS) {
-                    return  // ✅ Même zone → ignore
-                }
+        // Vérifie si c'est trop proche de la dernière entrée
+        var tropProche = false
+        val lastItem = history.lastOrNull()
+        if (lastItem != null) {
+            val distance = FloatArray(1)
+            android.location.Location.distanceBetween(
+                lastItem.lat, lastItem.lon, lat, lon, distance
+            )
+            if (distance[0] < MIN_HISTORY_DISTANCE_METERS) {
+                tropProche = true
             }
-
+        }
+        
+        if (!tropProche) {
             val item = HistoryItem(lat, lon, time, from)
             history.add(item)
-
-            // Créer la ligne dans la liste
-            val entry = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(8, 6, 8, 6)
-                setBackgroundColor(0xFFF0F0F0.toInt())
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(0, 2, 0, 2) }
-            }
-
-            val timeText = TextView(this).apply {
-                text = time
-                textSize = 12f
-                setTextColor(0xFF666666.toInt())
-                setPadding(0, 0, 8, 0)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            val coordText = TextView(this).apply {
-                text = "$lat,$lon"
-                textSize = 11f
-                setTextColor(0xFF333333.toInt())
-                setPadding(0, 0, 8, 0)
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                maxLines = 1
-            }
-
-            val mapBtn = TextView(this).apply {
-                text = "🌍 Maps"
-                textSize = 11f
-                setTextColor(0xFFFFFFFF.toInt())
-                setBackgroundColor(0xFF4285F4.toInt())
-                setPadding(12, 4, 12, 4)
-                gravity = Gravity.CENTER
-                setOnClickListener {
-                    val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            entry.addView(timeText)
-            entry.addView(coordText)
-            entry.addView(mapBtn)
             
-            historyContainer.addView(entry, 0)  // ✅ Nouvelle en haut
+            runOnUiThread {
+                val entry = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(8, 6, 8, 6)
+                    setBackgroundColor(0xFFF0F0F0.toInt())
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 2, 0, 2) }
+                }
+
+                val timeText = TextView(this@MainActivity).apply {
+                    text = time
+                    textSize = 12f
+                    setTextColor(0xFF666666.toInt())
+                    setPadding(0, 0, 8, 0)
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                val coordText = TextView(this@MainActivity).apply {
+                    text = String.format("%.5f, %.5f", lat, lon)
+                    textSize = 11f
+                    setTextColor(0xFF333333.toInt())
+                    setPadding(0, 0, 8, 0)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    maxLines = 1
+                }
+
+                val mapBtn = TextView(this@MainActivity).apply {
+                    text = "🌍 Maps"
+                    textSize = 11f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setBackgroundColor(0xFF4285F4.toInt())
+                    setPadding(12, 4, 12, 4)
+                    gravity = Gravity.CENTER
+                    setOnClickListener {
+                        val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                entry.addView(timeText)
+                entry.addView(coordText)
+                entry.addView(mapBtn)
+                
+                historyContainer.addView(entry, 0)
+            }
         }
     }
 
