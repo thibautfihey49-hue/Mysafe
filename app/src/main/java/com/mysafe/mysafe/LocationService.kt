@@ -50,7 +50,7 @@ class LocationService : android.app.Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!running.get()) {
             startForeground(1, NotificationCompat.Builder(this, CHANNEL)
-                .setContentTitle("MySafe — Surveillance active")
+                .setContentTitle("Surveillance active")
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setOngoing(true)
                 .build())
@@ -65,16 +65,12 @@ class LocationService : android.app.Service() {
             override fun onLocationChanged(loc: Location) {
                 val t = SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(Date())
                 val pos = Position(loc.latitude, loc.longitude, t)
-
-                // ✅ PAS DE DOUBLON — si même position, on ignore
                 if (pos.sameAs(lastPos)) return
-
                 synchronized(positions) {
                     positions.add(0, pos)
                     if (positions.size > 50) positions.removeAt(positions.size - 1)
                 }
                 lastPos = pos
-
                 sendBroadcast(Intent(ACTION_UPDATE).apply {
                     setPackage(packageName)
                     putExtra("lat", loc.latitude)
@@ -86,7 +82,6 @@ class LocationService : android.app.Service() {
             override fun onProviderEnabled(p: String) {}
             override fun onProviderDisabled(p: String) {}
         }
-
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             lm?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000L, 0f, listener!!)
             lm?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000L, 0f, listener!!)

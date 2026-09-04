@@ -11,7 +11,7 @@
         android:allowBackup="true"
         android:icon="@android:drawable/ic_menu_mylocation"
         android:label="MySafe"
-        android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar">
+        android:theme="@android:style/Theme.Light">
 
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
