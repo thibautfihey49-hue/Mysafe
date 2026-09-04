@@ -1,228 +1,239 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
     android:background="#F0F4F8">
 
-    <LinearLayout
+    <!-- 📜 CONTENU SCROLLABLE (en dessous) -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:layout_marginTop="296dp">
 
-        <TextView
-            android:id="@+id/title_header"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🌸 MySafe GPS"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:padding="16dp"
-            android:textColor="#1A2332"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- 📱 CARTE SAISIE NUMÉROS -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="@drawable/bg_card"
-            android:elevation="4dp"
-            android:layout_marginBottom="12dp"
-            android:padding="16dp">
+            android:padding="12dp">
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/title_header"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📱 Mon numéro"
-                android:textSize="13sp"
+                android:text="🌸 MySafe GPS"
+                android:textSize="26sp"
                 android:textStyle="bold"
-                android:textColor="#6B7280"
-                android:layout_marginBottom="6dp"/>
-
-            <EditText
-                android:id="@+id/my_phone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="+33 6 12 34 56 78"
-                android:inputType="phone"
-                android:padding="14dp"
-                android:background="@drawable/bg_input"
-                android:textColor="#1F2937"
-                android:textSize="15sp"
-                android:layout_marginBottom="16dp"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🎯 Numéro cible"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="#6B7280"
-                android:layout_marginBottom="6dp"/>
-
-            <EditText
-                android:id="@+id/target_phone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="+33 6 87 65 43 21"
-                android:inputType="phone"
-                android:padding="14dp"
-                android:background="@drawable/bg_input"
-                android:textColor="#1F2937"
-                android:textSize="15sp"/>
-        </LinearLayout>
-
-        <!-- 🔘 BOUTON PRINCIPAL -->
-        <Button
-            android:id="@+id/toggle_btn"
-            android:layout_width="match_parent"
-            android:layout_height="58dp"
-            android:text="▶ DEMARRER LA SURVEILLANCE"
-            android:backgroundTint="#10B981"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:elevation="6dp"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- 📊 STATUT -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/bg_status_green"
-            android:padding="14dp"
-            android:layout_marginBottom="12dp"
-            android:gravity="center">
-
-            <TextView
-                android:id="@+id/status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🔴 Surveillance arrêtée"
                 android:gravity="center"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="#374151"/>
-
-            <TextView
-                android:id="@+id/last_update"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📍 Dernière mise à jour : --:--:--"
-                android:gravity="center"
-                android:textSize="13sp"
-                android:textColor="#6B7280"
-                android:layout_marginTop="4dp"/>
-        </LinearLayout>
-
-        <!-- 🗺️ CARTE PRINCIPALE — GRAND CARRÉ ! -->
-        <org.osmdroid.views.MapView
-            android:id="@+id/map"
-            android:layout_width="match_parent"
-            android:layout_height="280dp"
-            android:layout_marginBottom="12dp"
-            android:background="#E5E7EB"
-            android:elevation="2dp"/>
-
-        <!-- 📋 EN-TÊTE HISTORIQUE -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="📋 Historique des positions"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="#1F2937"/>
-
-            <Button
-                android:id="@+id/btn_clear_history"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="🗑️ Effacer"
-                android:backgroundTint="#EF4444"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:paddingLeft="16dp"
-                android:paddingRight="16dp"/>
-        </LinearLayout>
-
-        <!-- 📜 LISTE HISTORIQUE — DÉFILE SI BESOIN -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="8dp">
-
-            <LinearLayout
-                android:id="@+id/history_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"/>
-        </LinearLayout>
-
-        <!-- 🔒 MENU CACHÉ — TOUJOURS EN BAS, DANS LE SCROLL ! -->
-        <LinearLayout
-            android:id="@+id/hidden_menu"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/bg_menu_hidden"
-            android:padding="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="16dp"
-            android:visibility="gone"
-            android:elevation="2dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📹 Menu Streaming"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="#1E40AF"
+                android:padding="16dp"
+                android:textColor="#1A2332"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp"/>
 
-            <Button
-                android:id="@+id/stream_video_btn"
+            <!-- 📱 CARTE SAISIE NUMÉROS -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="📹 Activer caméra à distance"
-                android:backgroundTint="#3B82F6"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp"/>
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:elevation="4dp"
+                android:layout_marginBottom="12dp"
+                android:padding="16dp">
 
-            <Button
-                android:id="@+id/stream_audio_btn"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="🎤 Activer micro à distance"
-                android:backgroundTint="#F59E0B"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📱 Mon numéro"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#6B7280"
+                    android:layout_marginBottom="6dp"/>
 
+                <EditText
+                    android:id="@+id/my_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="+33 6 12 34 56 78"
+                    android:inputType="phone"
+                    android:padding="14dp"
+                    android:background="@drawable/bg_input"
+                    android:textColor="#1F2937"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎯 Numéro cible"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#6B7280"
+                    android:layout_marginBottom="6dp"/>
+
+                <EditText
+                    android:id="@+id/target_phone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="+33 6 87 65 43 21"
+                    android:inputType="phone"
+                    android:padding="14dp"
+                    android:background="@drawable/bg_input"
+                    android:textColor="#1F2937"
+                    android:textSize="15sp"/>
+            </LinearLayout>
+
+            <!-- 🔘 BOUTON PRINCIPAL -->
             <Button
-                android:id="@+id/stream_stop_btn"
+                android:id="@+id/toggle_btn"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="⏹ Arrêter tout"
-                android:backgroundTint="#EF4444"
+                android:layout_height="58dp"
+                android:text="▶ DEMARRER LA SURVEILLANCE"
+                android:backgroundTint="#10B981"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"/>
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:elevation="6dp"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- 📊 STATUT -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_status_green"
+                android:padding="14dp"
+                android:layout_marginBottom="12dp"
+                android:gravity="center">
+
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔴 Surveillance arrêtée"
+                    android:gravity="center"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#374151"/>
+
+                <TextView
+                    android:id="@+id/last_update"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📍 Dernière mise à jour : --:--:--"
+                    android:gravity="center"
+                    android:textSize="13sp"
+                    android:textColor="#6B7280"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
+
+            <!-- 📋 EN-TÊTE HISTORIQUE -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="📋 Historique des positions"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#1F2937"/>
+
+                <Button
+                    android:id="@+id/btn_clear_history"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="🗑️ Effacer"
+                    android:backgroundTint="#EF4444"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:paddingLeft="16dp"
+                    android:paddingRight="16dp"/>
+            </LinearLayout>
+
+            <!-- 📜 LISTE HISTORIQUE -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp">
+
+                <LinearLayout
+                    android:id="@+id/history_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"/>
+            </LinearLayout>
+
+            <!-- 🔒 MENU CACHÉ -->
+            <LinearLayout
+                android:id="@+id/hidden_menu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_menu_hidden"
+                android:padding="16dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone"
+                android:elevation="2dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📹 Menu Streaming"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#1E40AF"
+                    android:layout_marginBottom="12dp"/>
+
+                <Button
+                    android:id="@+id/stream_video_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="📹 Activer caméra à distance"
+                    android:backgroundTint="#3B82F6"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/stream_audio_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="🎤 Activer micro à distance"
+                    android:backgroundTint="#F59E0B"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/stream_stop_btn"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="⏹ Arrêter tout"
+                    android:backgroundTint="#EF4444"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
         </LinearLayout>
+    </ScrollView>
 
-    </LinearLayout>
-</ScrollView>
+    <!-- 🗺️ CARTE FLOTTANTE — PAR-DESSUS TOUT, JAMAIS CACHÉE ! -->
+    <org.osmdroid.views.MapView
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_gravity="top"
+        android:layout_margin="8dp"
+        android:background="#E5E7EB"
+        android:elevation="8dp"
+        android:clickable="true"
+        android:focusable="true"/>
+
+</FrameLayout>
