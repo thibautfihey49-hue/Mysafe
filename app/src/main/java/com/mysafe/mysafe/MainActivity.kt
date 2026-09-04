@@ -39,9 +39,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_main)  // ✅ D'ABORD setContentView
 
-        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
+        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))  // ✅ ENSUITE osmdroid
+
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
@@ -57,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
         startBtn.setOnClickListener {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.INTERNET), 100)
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 100)
             } else {
                 startService(Intent(this, LocationService::class.java))
                 Toast.makeText(this, "Démarré", Toast.LENGTH_SHORT).show()

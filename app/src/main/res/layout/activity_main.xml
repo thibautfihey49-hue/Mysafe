@@ -4,21 +4,18 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- 🗺️ CARTE — EXACTEMENT COMME TU L'AVAIS, RIEN CHANGÉ -->
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
 
-    <!-- ✅ HISTORIQUE — JUSTE AJOUTÉ EN DESSOUS, RIEN D'AUTRE -->
     <ListView
         android:id="@+id/history_list"
         android:layout_width="match_parent"
         android:layout_height="150dp"
         android:background="#FFFFFF"/>
 
-    <!-- 🎮 BOUTONS — EXACTEMENT COMME TU L'AVAIS -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
