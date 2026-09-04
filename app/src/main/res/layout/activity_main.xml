@@ -119,8 +119,8 @@
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="280dp"
+        
         android:layout_marginBottom="12dp"
         android:background="#E5E7EB"
         android:elevation="2dp"/>
@@ -136,7 +136,7 @@
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            
             android:text="📋 Historique des positions"
             android:textSize="15sp"
             android:textStyle="bold"
