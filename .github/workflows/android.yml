@@ -12,20 +12,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        
-      - name: Get Gradle Wrapper JAR
-        run: |
-          mkdir -p gradle/wrapper
-          # ✅ Télécharge DIRECTEMENT le jar — PAS BESOIN DE TOUT DECOMPRESSER
-          curl -L "https://raw.githubusercontent.com/gradle/gradle/v8.6.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-          ls -lh gradle/wrapper/
+      - name: Setup Gradle officially ✅
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
           
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-        
-      - name: Build APK
+      - name: Generate wrapper jar properly ✅
+        run: gradle wrapper --gradle-version 8.6
+          
+      - name: Build APK ✅
         run: ./gradlew assembleDebug
         
       - name: Upload APK
