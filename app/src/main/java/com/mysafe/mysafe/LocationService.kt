@@ -50,7 +50,7 @@ class LocationService : android.app.Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!running.get()) {
             startForeground(1, NotificationCompat.Builder(this, CHANNEL)
-                .setContentTitle("Surveillance active")
+                .setContentTitle("MySafe — Surveillance active")
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setOngoing(true)
                 .build())
@@ -66,7 +66,7 @@ class LocationService : android.app.Service() {
                 val t = SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(Date())
                 val pos = Position(loc.latitude, loc.longitude, t)
 
-                // ✅ PAS DE DOUBLON
+                // ✅ PAS DE DOUBLON — si même position, on ignore
                 if (pos.sameAs(lastPos)) return
 
                 synchronized(positions) {

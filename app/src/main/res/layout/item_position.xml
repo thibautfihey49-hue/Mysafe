@@ -3,12 +3,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="10dp"
+    android:background="?android:attr/selectableItemBackground">
 
     <TextView
         android:id="@+id/item_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="12sp"/>
+        android:textSize="13sp"
+        android:text="--:--:-- | 0.000000, 0.000000"/>
 
 </LinearLayout>

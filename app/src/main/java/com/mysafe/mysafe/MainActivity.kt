@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var map: MapView
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
+    private lateinit var cameraBtn: Button
     private lateinit var historyList: RecyclerView
     private lateinit var emptyHistory: TextView
     private var marker: Marker? = null
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
 
         startBtn = findViewById(R.id.start_btn)
         stopBtn = findViewById(R.id.stop_btn)
+        cameraBtn = findViewById(R.id.camera_btn)
         historyList = findViewById(R.id.history_list)
         emptyHistory = findViewById(R.id.empty_history)
 
@@ -67,13 +69,17 @@ class MainActivity : AppCompatActivity() {
                 requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.INTERNET), 100)
             } else {
                 startService(Intent(this, LocationService::class.java))
-                Toast.makeText(this, "Démarré", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "✅ Surveillance démarrée", Toast.LENGTH_SHORT).show()
             }
         }
 
         stopBtn.setOnClickListener {
             stopService(Intent(this, LocationService::class.java))
-            Toast.makeText(this, "Arrêté", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⏹ Surveillance arrêtée", Toast.LENGTH_SHORT).show()
+        }
+
+        cameraBtn.setOnClickListener {
+            startActivity(Intent(this, StreamingActivity::class.java))
         }
 
         registerReceiver(receiver, IntentFilter(LocationService.ACTION_UPDATE))
@@ -118,7 +124,7 @@ class MainActivity : AppCompatActivity() {
         override fun getItemCount() = data.size
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             fun bind(p: LocationService.Position) {
-                (v.findViewById<TextView>(R.id.item_text)).text = "${p.time} | ${p.lat}, ${p.lon}"
+                (v.findViewById<TextView>(R.id.item_text)).text = "${p.time} | ${String.format("%.6f", p.lat)}, ${String.format("%.6f", p.lon)}"
             }
         }
     }
