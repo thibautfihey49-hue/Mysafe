@@ -1,34 +1,26 @@
 package com.mysafe.mysafe
 import android.Manifest
-import android.app.Activity
 import android.content.*
 import android.content.pm.PackageManager
-import android.graphics.PixelFormat
-import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraManager
 import android.media.*
-import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import java.io.*
+import java.io.File
 import java.net.*
-import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
 class StreamingActivity : AppCompatActivity() {
     private lateinit var mode: String
     private lateinit var targetPhone: String
-    private var surfaceView: SurfaceView? = null
-    private var cameraManager: CameraManager? = null
+    private var surfaceView: View? = null
+    private var cameraManager: android.hardware.camera2.CameraManager? = null
     private var cameraId: String? = null
     private var recording = AtomicBoolean(false)
     private var running = AtomicBoolean(true)
@@ -40,8 +32,8 @@ class StreamingActivity : AppCompatActivity() {
     private var sendThread: Thread? = null
     private var audioTrack: AudioTrack? = null
     private var mediaRecorder: MediaRecorder? = null
-    private var outputStream: OutputStream? = null
-    private var inputStream: InputStream? = null
+    private var outputStream: java.io.OutputStream? = null
+    private var inputStream: java.io.InputStream? = null
 
     private val wifiDirectReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -54,8 +46,8 @@ class StreamingActivity : AppCompatActivity() {
                     }
                 }
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    // ✅ Corrigé : EXTRA_CONNECTION_INFO existe dans la classe WifiP2pManager
-                    val info = intent.getParcelableExtra<WifiP2pInfo>(WifiP2pManager.EXTRA_CONNECTION_INFO)
+                    // ✅ CORRIGÉ : Utilisation de la bonne clé
+                    val info = intent.getParcelableExtra<WifiP2pInfo>("wifiP2pInfo")
                     if (info?.groupFormed == true) {
                         if (info.isGroupOwner) startServer()
                         else connectToOwner(info.groupOwnerAddress)
@@ -73,10 +65,9 @@ class StreamingActivity : AppCompatActivity() {
         targetPhone = intent.getStringExtra("target_phone") ?: ""
 
         surfaceView = findViewById(R.id.surface_view)
-        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
 
         wifiP2pManager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        // ✅ Corrigé : Looper est importé maintenant
         channel = wifiP2pManager?.initialize(this, Looper.getMainLooper(), null)
 
         val filter = IntentFilter()
@@ -126,7 +117,7 @@ class StreamingActivity : AppCompatActivity() {
                 override fun onError(cam: android.hardware.camera2.CameraDevice, e: Int) { cam.close() }
             }, null)
 
-        } catch (e: CameraAccessException) { Toast.makeText(this, "Caméra inaccessible", Toast.LENGTH_SHORT).show() }
+        } catch (e: android.hardware.camera2.CameraAccessException) { Toast.makeText(this, "Caméra inaccessible", Toast.LENGTH_SHORT).show() }
     }
 
     private fun startVideoStreaming() {
@@ -138,13 +129,13 @@ class StreamingActivity : AppCompatActivity() {
                 setVideoSize(320, 240)
                 setVideoFrameRate(10)
                 setVideoEncodingBitRate(256000)
-                // ✅ Corrigé : setOutput prend un FileDescriptor, pas un ByteArrayOutputStream
-                val tempFile = File(externalCacheDir, "temp_stream.mp4")
-                setOutput(tempFile.absolutePath)
+                // ✅ CORRIGÉ : Utilisation de setOutputFile(FileDescriptor)
+                val tempFile = File(externalCacheDir, "stream_temp.mp4")
+                setOutputFile(tempFile.absolutePath)
                 prepare()
             }
             startServer()
-        } catch (e: Exception) { Toast.makeText(this, "Erreur vidéo", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) { Toast.makeText(this, "Erreur vidéo: ${e.message}", Toast.LENGTH_SHORT).show() }
     }
 
     private fun startAudio() {
@@ -180,7 +171,7 @@ class StreamingActivity : AppCompatActivity() {
 
                 if (mode == "audio") startAudioPlayback()
 
-            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Erreur connexion", Toast.LENGTH_SHORT).show() } }
+            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Erreur connexion: ${e.message}", Toast.LENGTH_SHORT).show() } }
         }.start()
     }
 
@@ -192,7 +183,7 @@ class StreamingActivity : AppCompatActivity() {
                 inputStream = socket?.getInputStream()
                 runOnUiThread { Toast.makeText(this, "✅ Connecté ! Réception en cours", Toast.LENGTH_SHORT).show() }
                 if (mode == "audio") startAudioPlayback()
-            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Impossible de se connecter", Toast.LENGTH_SHORT).show() } }
+            } catch (e: Exception) { runOnUiThread { Toast.makeText(this, "Impossible de se connecter: ${e.message}", Toast.LENGTH_SHORT).show() } }
         }.start()
     }
 
