@@ -1,18 +1,24 @@
 package com.mysafe.mysafe
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.*
 import android.content.pm.PackageManager
-import android.graphics.Color
-import android.net.Uri
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
-import android.view.Gravity
+import android.provider.Settings
+import android.telephony.SmsManager
+import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -21,46 +27,34 @@ import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import android.location.Geocoder
 
-data class HistoryItem(
-    val lat: Double,
-    val lon: Double,
-    val time: String,
-    val from: String,
-    val address: String
-)
+class MainActivity : AppCompatActivity(), LocationListener {
 
-class MainActivity : AppCompatActivity() {
     private lateinit var map: MapView
     private lateinit var statusText: TextView
     private lateinit var targetPhoneInput: EditText
     private lateinit var myPhoneInput: EditText
     private lateinit var toggleBtn: Button
-    private lateinit var lastUpdateText: TextView
-    private lateinit var titleHeader: TextView
-    private lateinit var hiddenMenu: LinearLayout
-    private lateinit var historyContainer: LinearLayout
     private lateinit var btnClearHistory: Button
+    private lateinit var stream_video_btn: Button
+    private lateinit var stream_audio_btn: Button
+    private lateinit var btnFloatMap: Button
     
-    private var myPhoneNumber = ""
-    private var isMonitoring = false
-    private var positionMarker: Marker? = null
-    private var titleClickCount = 0
-    
-    private val history = mutableListOf<HistoryItem>()
-    private val MIN_HISTORY_DISTANCE_METERS = 50f
+    private var myMarker: Marker? = null
+    private var otherMarker: Marker? = null
+    private var isTracking = false
+    private lateinit var locationManager: LocationManager
+    private val historyList = mutableListOf<String>()
+    private lateinit var historyAdapter: ArrayAdapter<String>
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            intent ?: return
-            val lat = intent.getDoubleExtra("lat", 0.0)
-            val lon = intent.getDoubleExtra("lon", 0.0)
-            val time = intent.getStringExtra("time") ?: "--:--:--"
-            val from = intent.getStringExtra("from") ?: "???"
-            updateMapPosition(lat, lon, time, from)
-            getAddressAsync(lat, lon) { address ->
-                addToHistory(lat, lon, time, from, address)
+            if (intent?.action == "MYSAFE_POSITION_UPDATE") {
+                val lat = intent.getDoubleExtra("lat", 0.0)
+                val lon = intent.getDoubleExtra("lon", 0.0)
+                val time = intent.getStringExtra("time") ?: "??:??:??"
+                val from = intent.getStringExtra("from") ?: "AUTRE"
+                updateMapPosition(lat, lon, time, from)
             }
         }
     }
@@ -70,264 +64,236 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
-        osmdroidDir.mkdirs()
         Configuration.getInstance().osmdroidBasePath = osmdroidDir
-        Configuration.getInstance().osmdroidTileCache = File(osmdroidDir, "tiles")
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
 
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         map.setMultiTouchControls(true)
         map.controller?.setZoom(15.0)
+        map.controller?.setCenter(GeoPoint(47.47, -0.55))
 
         statusText = findViewById(R.id.status)
         targetPhoneInput = findViewById(R.id.target_phone)
         myPhoneInput = findViewById(R.id.my_phone)
         toggleBtn = findViewById(R.id.toggle_btn)
-        lastUpdateText = findViewById(R.id.last_update)
-        titleHeader = findViewById(R.id.title_header)
-        hiddenMenu = findViewById(R.id.hidden_menu)
-        historyContainer = findViewById(R.id.history_container)
         btnClearHistory = findViewById(R.id.btn_clear_history)
+        stream_video_btn = findViewById(R.id.stream_video_btn)
+        stream_audio_btn = findViewById(R.id.stream_audio_btn)
+        btnFloatMap = findViewById(R.id.btn_float_map)
 
-        myPhoneNumber = getMyPhoneNumber()
-        myPhoneInput.setText(myPhoneNumber)
+        historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historyList)
+        findViewById<ListView>(R.id.history_list)?.adapter = historyAdapter
 
-        // ✅ MENU CACHÉ — 5 CLICS SUR LE TITRE
-        titleHeader.setOnClickListener {
-            titleClickCount++
-            if (titleClickCount >= 5) {
-                titleClickCount = 0
-                if (hiddenMenu.visibility == View.GONE) {
-                    hiddenMenu.visibility = View.VISIBLE
-                    Toast.makeText(this, "📹 Menu Streaming DÉVERROUILLÉ", Toast.LENGTH_SHORT).show()
-                } else {
-                    hiddenMenu.visibility = View.GONE
-                    Toast.makeText(this, "🔒 Menu Streaming caché", Toast.LENGTH_SHORT).show()
-                }
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        requestPermissions()
+
+        toggleBtn.setOnClickListener { toggleTracking() }
+        
+        btnClearHistory.setOnClickListener {
+            historyList.clear()
+            historyAdapter.notifyDataSetChanged()
+            Toast.makeText(this, "🗑️ Historique effacé", Toast.LENGTH_SHORT).show()
+        }
+
+        // 📹 DEMANDER CAMÉRA À L'AUTRE
+        stream_video_btn.setOnClickListener {
+            val target = targetPhoneInput.text.toString().trim()
+            if (target.isBlank()) {
+                Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val smsManager = SmsManager.getDefault()
+            try {
+                smsManager.sendDataMessage(target, null, 50006.toShort(), "MYSAFE_CAMERA_ON".toByteArray(Charsets.UTF_8), null, null)
+                Toast.makeText(this, "📩 Commande CAMÉRA envoyée !", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                smsManager.sendTextMessage(target, null, "MYSAFE_CAMERA_ON", null, null)
+                Toast.makeText(this, "📩 Commande CAMÉRA envoyée !", Toast.LENGTH_SHORT).show()
             }
         }
 
-        toggleBtn.setOnClickListener { toggleMonitoring() }
-
-        findViewById<Button>(R.id.stream_video_btn).setOnClickListener {
+        // 📍 DEMANDER POSITION À L'AUTRE
+        stream_audio_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
-            if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            val intent = Intent(this, StreamingActivity::class.java)
-            intent.putExtra("mode", "video")
-            intent.putExtra("target_phone", target)
-            startActivity(intent)
+            if (target.isBlank()) {
+                Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val smsManager = SmsManager.getDefault()
+            try {
+                smsManager.sendDataMessage(target, null, 50006.toShort(), "MYSAFE_SEND_POS".toByteArray(Charsets.UTF_8), null, null)
+                Toast.makeText(this, "📩 Demande POSITION envoyée !", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                smsManager.sendTextMessage(target, null, "MYSAFE_SEND_POS", null, null)
+                Toast.makeText(this, "📩 Demande POSITION envoyée !", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        findViewById<Button>(R.id.stream_audio_btn).setOnClickListener {
-            val target = targetPhoneInput.text.toString().trim()
-            if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            val intent = Intent(this, StreamingActivity::class.java)
-            intent.putExtra("mode", "audio")
-            intent.putExtra("target_phone", target)
-            startActivity(intent)
-        }
-
-        findViewById<Button>(R.id.stream_stop_btn).setOnClickListener {
-            sendBroadcast(Intent("STOP_STREAMING"))
-            Toast.makeText(this, "⏹ Streaming arrêté", Toast.LENGTH_SHORT).show()
-        }
-
-        btnClearHistory.setOnClickListener {
-            history.clear()
-            historyContainer.removeAllViews()
-            Toast.makeText(this, "🗑️ Historique effacé !", Toast.LENGTH_SHORT).show()
+        // 📌 OUVRIR CARTE FLOTTANTE
+        btnFloatMap.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    startService(Intent(this, FloatingMapWindow::class.java))
+                    Toast.makeText(this, "🗺️ Carte flottante ouverte ! Déplace-la en la glissant", Toast.LENGTH_LONG).show()
+                } else {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                    startActivity(intent)
+                    Toast.makeText(this, "⚠️ Autorisez l'affichage par-dessus les apps", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                startService(Intent(this, FloatingMapWindow::class.java))
+                Toast.makeText(this, "🗺️ Carte flottante ouverte !", Toast.LENGTH_LONG).show()
+            }
         }
 
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
-        requestAllPermissions()
-    }
 
-    private fun getMyPhoneNumber(): String {
-        return try {
-            val tm = getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
-            tm.line1Number ?: ""
-        } catch (e: Exception) { "" }
-    }
-
-    private fun getAddressAsync(lat: Double, lon: Double, callback: (String) -> Unit) {
-        Thread {
-            var addressStr = "Adresse inconnue"
-            try {
-                val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
-                val addresses = geocoder.getFromLocation(lat, lon, 1)
-                if (!addresses.isNullOrEmpty()) {
-                    val addr = addresses[0]
-                    addressStr = addr.thoroughfare ?: addr.featureName ?: "Sans nom de rue"
-                    if (addr.subLocality != null) addressStr = addr.subLocality + ", " + addressStr
-                }
-            } catch (e: Exception) {
-                addressStr = "Erreur adresse"
+        // 📩 RÉPONDRE À UNE DEMANDE DE POSITION
+        val envoyerPosReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val target = intent?.getStringExtra("target_phone") ?: return
+                try {
+                    val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                    val loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                    loc?.let {
+                        val smsManager = SmsManager.getDefault()
+                        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                        val msg = "MYSAFE:${it.latitude}:${it.longitude}:$time:ME"
+                        try {
+                            smsManager.sendDataMessage(target, null, 50006.toShort(), msg.toByteArray(Charsets.UTF_8), null, null)
+                        } catch (e: Exception) {
+                            smsManager.sendTextMessage(target, null, msg, null, null)
+                        }
+                    }
+                } catch (e: Exception) {}
             }
-            runOnUiThread { callback(addressStr) }
-        }.start()
+        }
+        registerReceiver(envoyerPosReceiver, IntentFilter("ENVOYER_POSITION"), RECEIVER_NOT_EXPORTED)
     }
 
-    private fun toggleMonitoring() {
-        val targetPhone = targetPhoneInput.text.toString().trim()
-        val myPhone = myPhoneInput.text.toString().trim()
-        if (targetPhone.isBlank() || myPhone.isBlank()) { Toast.makeText(this, "Remplissez les deux numéros", Toast.LENGTH_SHORT).show(); return }
-
-        if (!isMonitoring) {
-            val intent = Intent(this, LocationService::class.java)
-            intent.action = LocationService.ACTION_START
-            intent.putExtra(LocationService.EXTRA_TARGET_PHONE, targetPhone)
-            intent.putExtra(LocationService.EXTRA_MY_PHONE, myPhone)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-
-            isMonitoring = true
-            toggleBtn.text = "⏹ ARRETER LA SURVEILLANCE"
-            toggleBtn.setBackgroundColor(Color.parseColor("#EF4444"))
-            statusText.text = "🟢 Surveillance active"
-            statusText.setTextColor(Color.parseColor("#065F46"))
-            Toast.makeText(this, "Surveillance démarrée !", Toast.LENGTH_SHORT).show()
-            LocationService.lastLocation?.let { 
-                val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                updateMapPosition(it.latitude, it.longitude, time, "MOI")
-                getAddressAsync(it.latitude, it.longitude) { address ->
-                    addToHistory(it.latitude, it.longitude, time, "MOI", address)
-                }
+    private fun requestPermissions() {
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.SEND_SMS)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECEIVE_SMS)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.READ_SMS)
             }
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 1001)
+        }
+    }
+
+    private fun toggleTracking() {
+        if (isTracking) {
+            stopTracking()
         } else {
-            val intent = Intent(this, LocationService::class.java)
-            intent.action = LocationService.ACTION_STOP
-            startService(intent)
-            isMonitoring = false
-            toggleBtn.text = "▶ DEMARRER LA SURVEILLANCE"
-            toggleBtn.setBackgroundColor(Color.parseColor("#10B981"))
-            statusText.text = "🔴 Surveillance arrêtée"
-            statusText.setTextColor(Color.parseColor("#6B7280"))
-            Toast.makeText(this, "Surveillance arrêtée", Toast.LENGTH_SHORT).show()
+            startTracking()
+        }
+    }
+
+    private fun startTracking() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Autorisez la localisation d'abord", Toast.LENGTH_SHORT).show()
+            return
+        }
+        isTracking = true
+        toggleBtn.text = "⏹️ ARRÊTER LE SUIVI"
+        statusText.text = "✅ Suivi démarré — Envoi UNIQUEMENT sur demande"
+        
+        try {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000, 5f, this)
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 5f, this)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Erreur démarrage GPS", e)
+        }
+    }
+
+    private fun stopTracking() {
+        isTracking = false
+        toggleBtn.text = "▶️ DÉMARRER LE SUIVI"
+        statusText.text = "⏸️ Suivi arrêté"
+        locationManager.removeUpdates(this)
+    }
+
+    override fun onLocationChanged(location: Location) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        updateMyPosition(location.latitude, location.longitude, time)
+    }
+
+    private fun updateMyPosition(lat: Double, lon: Double, time: String) {
+        val gp = GeoPoint(lat, lon)
+        if (myMarker == null) {
+            myMarker = Marker(map).apply {
+                position = gp
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
+                title = "Ma position"
+            }
+            map.overlays.add(myMarker)
+        } else {
+            myMarker?.position = gp
+        }
+        map.invalidate()
+        map.controller?.animateTo(gp)
+
+        val entry = "📍 MOI — $time\n$lat, $lon"
+        if (!historyList.contains(entry)) {
+            historyList.add(0, entry)
+            historyAdapter.notifyDataSetChanged()
         }
     }
 
     private fun updateMapPosition(lat: Double, lon: Double, time: String, from: String) {
-        val point = GeoPoint(lat, lon)
-        runOnUiThread {
-            positionMarker?.let { map.overlays.remove(it) }
-            positionMarker = Marker(map).apply {
-                position = point
-                title = "Position [$from]"
-                snippet = "$lat, $lon\n$time"
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
+        val gp = GeoPoint(lat, lon)
+        if (from == "AUTRE") {
+            if (otherMarker == null) {
+                otherMarker = Marker(map).apply {
+                    position = gp
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    icon = resources.getDrawable(android.R.drawable.ic_menu_compass, null)
+                    title = "Position cible"
+                }
+                map.overlays.add(otherMarker)
+            } else {
+                otherMarker?.position = gp
             }
-            map.overlays.add(positionMarker)
-            map.controller?.animateTo(point)
-            map.invalidate()
-            lastUpdateText.text = "📍 MàJ : $time — Depuis : $from"
-        }
-    }
-
-    private fun addToHistory(lat: Double, lon: Double, time: String, from: String, address: String) {
-        var tropProche = false
-        val lastItem = history.lastOrNull()
-        if (lastItem != null) {
-            val distance = FloatArray(1)
-            android.location.Location.distanceBetween(
-                lastItem.lat, lastItem.lon, lat, lon, distance
-            )
-            if (distance[0] < MIN_HISTORY_DISTANCE_METERS) {
-                tropProche = true
+            val entry = "🎯 CIBLE — $time\n$lat, $lon"
+            if (!historyList.contains(entry)) {
+                historyList.add(0, entry)
+                historyAdapter.notifyDataSetChanged()
             }
         }
-        
-        if (!tropProche) {
-            val item = HistoryItem(lat, lon, time, from, address)
-            history.add(item)
-            
-            runOnUiThread {
-                val entry = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(12, 12, 12, 12)
-                    setBackgroundColor(0xFFFFFFFF.toInt())
-                    elevation = 2f
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 0, 0, 10) }
-                }
-
-                val textPart = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-                    setPadding(0, 0, 12, 0)
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-
-                val timeText = TextView(this@MainActivity).apply {
-                    text = "🕐 $time"
-                    textSize = 12f
-                    setTextColor(0xFF6B7280.toInt())
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                }
-
-                val addrText = TextView(this@MainActivity).apply {
-                    text = "📍 $address"
-                    textSize = 14f
-                    setTextColor(0xFF1F2937.toInt())
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    maxLines = 2
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                }
-
-                textPart.addView(timeText)
-                textPart.addView(addrText)
-
-                val miniMap = MapView(this@MainActivity).apply {
-                    setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-                    setMultiTouchControls(false)
-                    isClickable = true
-                    layoutParams = LinearLayout.LayoutParams(0, 100, 1f)
-                    controller?.setZoom(14.0)
-                    controller?.setCenter(GeoPoint(lat, lon))
-                    setBackgroundColor(0xFFF3F4F6.toInt())
-                    val miniMarker = Marker(this).apply {
-                        position = GeoPoint(lat, lon)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
-                    }
-                    overlays.add(miniMarker)
-                    setOnClickListener {
-                        val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
-                        startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    }
-                }
-
-                entry.addView(textPart)
-                entry.addView(miniMap)
-                
-                historyContainer.addView(entry, 0)
-            }
-        }
+        map.invalidate()
     }
 
-    private fun requestAllPermissions() {
-        val needed = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
-            Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.INTERNET,
-            Manifest.permission.ACCESS_WIFI_STATE, Manifest.permission.CHANGE_WIFI_STATE,
-            Manifest.permission.ACCESS_NETWORK_STATE, Manifest.permission.CHANGE_NETWORK_STATE
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) needed.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        val missing = needed.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
-        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 100)
+    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+    override fun onProviderEnabled(provider: String) {}
+    override fun onProviderDisabled(provider: String) {}
+
+    override fun onPause() {
+        super.onPause()
+        map.onPause()
     }
 
-    override fun onResume() { super.onResume(); map.onResume() }
-    override fun onPause() { super.onPause(); map.onPause() }
-    override fun onDestroy() { super.onDestroy(); unregisterReceiver(positionReceiver) }
+    override fun onResume() {
+        super.onResume()
+        map.onResume()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(positionReceiver)
+    }
 }
