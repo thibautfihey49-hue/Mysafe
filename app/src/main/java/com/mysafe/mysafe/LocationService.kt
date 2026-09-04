@@ -1,4 +1,5 @@
 package com.mysafe.mysafe
+
 import android.app.*
 import android.content.Context
 import android.content.Intent
@@ -23,6 +24,8 @@ class LocationService : Service() {
         const val EXTRA_MY_PHONE = "my_phone"
         var isRunning = false
         var lastLocation: GeoPoint? = null
+        var lastSentLocation: Location? = null  // ✅ MÉMOIRE DERNIÈRE POSITION ENVOYÉE
+        const val MIN_DISTANCE_METERS = 10f     // ✅ 10m minimum entre CHAQUE envoi
         var targetPhoneNumber: String = ""
         var myPhoneNumber: String = ""
     }
@@ -30,19 +33,30 @@ class LocationService : Service() {
     private val binder = LocalBinder()
     private lateinit var locationManager: LocationManager
     private lateinit var smsManager: SmsManager
-    private var handler = Handler(Looper.getMainLooper())
-    private var updateRunnable: Runnable? = null
-    private val UPDATE_INTERVAL = 0L
 
     inner class LocalBinder : Binder()
     override fun onBind(intent: Intent?): IBinder = binder
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
+            // ✅ VÉRIFICATION DOUBLE : seulement si + de 10m depuis DERNIER ENVOI
+            lastSentLocation?.let { derniere ->
+                val distance = location.distanceTo(derniere)
+                if (distance < MIN_DISTANCE_METERS) {
+                    // 🔴 Trop proche → ON IGNORE, PAS D'ENVOI !
+                    lastLocation = GeoPoint(location.latitude, location.longitude)
+                    broadcastUpdate()
+                    return
+                }
+            }
+
+            // ✅ ✅ OK — + de 10m → ON ENVOIE
+            lastSentLocation = location  // Mémorise cette position comme dernière envoyée
             lastLocation = GeoPoint(location.latitude, location.longitude)
             sendLocationBySms(location.latitude, location.longitude)
             broadcastUpdate()
         }
+
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
     }
@@ -66,32 +80,27 @@ class LocationService : Service() {
         if (isRunning) return
         targetPhoneNumber = intent.getStringExtra(EXTRA_TARGET_PHONE) ?: ""
         myPhoneNumber = intent.getStringExtra(EXTRA_MY_PHONE) ?: ""
+        
+        // ✅ RÉINITIALISE la mémoire au démarrage
+        lastSentLocation = null
+        
         startForeground(9999, createNotification())
         isRunning = true
 
         try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_INTERVAL, 10f, locationListener)
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, UPDATE_INTERVAL, 10f, locationListener)
-        } catch (e: SecurityException) {}
-
-        updateRunnable = object : Runnable {
-            override fun run() {
-                requestSingleLocation()
-                handler.postDelayed(this, UPDATE_INTERVAL)
-            }
-        }
-        handler.postDelayed(updateRunnable!!, 0)
-    }
-
-    private fun requestSingleLocation() {
-        try {
-            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            lastKnown?.let {
-                lastLocation = GeoPoint(it.latitude, it.longitude)
-                sendLocationBySms(it.latitude, it.longitude)
-                broadcastUpdate()
-            }
+            // ✅ Intervalle de temps = 0, distance = 10m
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                0,
+                MIN_DISTANCE_METERS,
+                locationListener
+            )
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                0,
+                MIN_DISTANCE_METERS,
+                locationListener
+            )
         } catch (e: SecurityException) {}
     }
 
@@ -100,10 +109,19 @@ class LocationService : Service() {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val message = "MYSAFE:$lat:$lon:$time:${myPhoneNumber.takeLast(4)}"
         try {
-            // ✅ Corrigé : port = 0 (Short), pas ByteArray
-            smsManager.sendDataMessage(targetPhoneNumber, null, 0.toShort(), message.toByteArray(Charsets.UTF_8), null, null)
+            // ✅ Port fixe 50006 pour SMS de données invisible
+            smsManager.sendDataMessage(
+                targetPhoneNumber,
+                null,
+                50006.toShort(),
+                message.toByteArray(Charsets.UTF_8),
+                null,
+                null
+            )
         } catch (e: Exception) {
-            try { smsManager.sendTextMessage(targetPhoneNumber, null, message, null, null) } catch (e2: Exception) {}
+            try {
+                smsManager.sendTextMessage(targetPhoneNumber, null, message, null, null)
+            } catch (e2: Exception) {}
         }
     }
 
@@ -116,7 +134,7 @@ class LocationService : Service() {
 
     private fun stopMonitoring() {
         isRunning = false
-        updateRunnable?.let { handler.removeCallbacks(it) }
+        lastSentLocation = null  // ✅ Efface la mémoire à l'arrêt
         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -124,11 +142,14 @@ class LocationService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val chan = NotificationChannel("MYSAFE_SVC", "Surveillance", NotificationManager.IMPORTANCE_MIN).apply {
+            val chan = NotificationChannel(
+                "MYSAFE_SVC",
+                "Surveillance",
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
                 setShowBadge(false)
                 enableVibration(false)
                 enableLights(false)
-                // ✅ Corrigé : utiliser la bonne constante
                 lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(chan)
