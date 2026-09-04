@@ -25,7 +25,12 @@ class LocationService : Service() {
         var isRunning = false
         var lastLocation: GeoPoint? = null
         var lastSentLocation: Location? = null
-        const val MIN_DISTANCE_METERS = 10f
+        
+        // ✅ RÈGLES DÉFINITIVES :
+        const val MIN_DISTANCE_METERS = 10f    // 📏 Au moins 10m
+        const val MIN_INTERVAL_SEC = 90L        // ⏳ 1 MINUTE 30 entre CHAQUE SMS
+        var lastSentTime = 0L
+        
         var targetPhoneNumber: String = ""
         var myPhoneNumber: String = ""
     }
@@ -33,26 +38,16 @@ class LocationService : Service() {
     private val binder = LocalBinder()
     private lateinit var locationManager: LocationManager
     private lateinit var smsManager: SmsManager
+    private var handler = Handler(Looper.getMainLooper())
+    private var periodicRunnable: Runnable? = null
 
     inner class LocalBinder : Binder()
     override fun onBind(intent: Intent?): IBinder = binder
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
-            lastSentLocation?.let { derniere ->
-                val distance = location.distanceTo(derniere)
-                if (distance < MIN_DISTANCE_METERS) {
-                    lastLocation = GeoPoint(location.latitude, location.longitude)
-                    broadcastUpdate()
-                    return
-                }
-            }
-            lastSentLocation = location
-            lastLocation = GeoPoint(location.latitude, location.longitude)
-            sendLocationBySms(location.latitude, location.longitude)
-            broadcastUpdate()
+            verifierEtEnvoyer(location)
         }
-
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
     }
@@ -76,11 +71,13 @@ class LocationService : Service() {
         if (isRunning) return
         targetPhoneNumber = intent.getStringExtra(EXTRA_TARGET_PHONE) ?: ""
         myPhoneNumber = intent.getStringExtra(EXTRA_MY_PHONE) ?: ""
+        
         lastSentLocation = null
+        lastSentTime = 0L
+        
         startForeground(9999, createNotification())
         isRunning = true
 
-        // ✅ ENVOIE LA POSITION TOUT DE SUITE AU DÉMARRAGE
         sendInitialLocation()
 
         try {
@@ -97,20 +94,50 @@ class LocationService : Service() {
                 locationListener
             )
         } catch (e: SecurityException) {}
+
+        periodicRunnable = object : Runnable {
+            override fun run() {
+                requestSingleLocation()
+                handler.postDelayed(this, MIN_INTERVAL_SEC * 1000)
+            }
+        }
+        handler.postDelayed(periodicRunnable!!, MIN_INTERVAL_SEC * 1000)
     }
 
-    // ✅ NOUVELLE FONCTION : PREMIÈRE POSITION IMMÉDIATE
+    private fun verifierEtEnvoyer(location: Location) {
+        val maintenant = System.currentTimeMillis()
+        
+        if (maintenant - lastSentTime < MIN_INTERVAL_SEC * 1000) return
+        
+        lastSentLocation?.let { derniere ->
+            if (location.distanceTo(derniere) < MIN_DISTANCE_METERS) return
+        }
+
+        envoyerPosition(location)
+    }
+
+    private fun envoyerPosition(location: Location) {
+        lastSentLocation = location
+        lastSentTime = System.currentTimeMillis()
+        lastLocation = GeoPoint(location.latitude, location.longitude)
+        
+        sendLocationBySms(location.latitude, location.longitude)
+        broadcastUpdate()
+    }
+
     private fun sendInitialLocation() {
         try {
             val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            
-            lastKnown?.let {
-                lastSentLocation = it
-                lastLocation = GeoPoint(it.latitude, it.longitude)
-                sendLocationBySms(it.latitude, it.longitude)
-                broadcastUpdate()
-            }
+            lastKnown?.let { envoyerPosition(it) }
+        } catch (e: SecurityException) {}
+    }
+
+    private fun requestSingleLocation() {
+        try {
+            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            lastKnown?.let { verifierEtEnvoyer(it) }
         } catch (e: SecurityException) {}
     }
 
@@ -144,6 +171,8 @@ class LocationService : Service() {
     private fun stopMonitoring() {
         isRunning = false
         lastSentLocation = null
+        lastSentTime = 0L
+        periodicRunnable?.let { handler.removeCallbacks(it) }
         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
