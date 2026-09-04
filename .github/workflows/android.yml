@@ -15,13 +15,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      - name: Generate Gradle Wrapper JAR automatically
+      - name: Get Gradle Wrapper JAR
         run: |
           mkdir -p gradle/wrapper
-          curl -L "https://services.gradle.org/distributions/gradle-8.6-bin.zip" -o gradle-8.6.zip
-          unzip -j gradle-8.6.zip "gradle-8.6/lib/gradle-wrapper-8.6.jar" -d gradle/wrapper/
-          mv gradle/wrapper/gradle-wrapper-8.6.jar gradle/wrapper/gradle-wrapper.jar
-          rm gradle-8.6.zip
+          # ✅ Télécharge DIRECTEMENT le jar — PAS BESOIN DE TOUT DECOMPRESSER
+          curl -L "https://raw.githubusercontent.com/gradle/gradle/v8.6.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
           ls -lh gradle/wrapper/
           
       - name: Make gradlew executable
