@@ -42,9 +42,9 @@
         <activity android:name=".StreamingActivity" android:exported="false" />
         <service android:name=".LocationService" android:exported="false"
             android:foregroundServiceType="location" />
-        <receiver android:name=".SmsReceiver" android:exported="true">
+        <receiver android:name=".SmsReceiver" android:exported="false" android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" /><data android:port="50006" android:scheme="sms" />
             </intent-filter>
         </receiver>
     </application>

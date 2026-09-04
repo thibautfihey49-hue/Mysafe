@@ -32,7 +32,7 @@ class LocationService : Service() {
     private lateinit var smsManager: SmsManager
     private var handler = Handler(Looper.getMainLooper())
     private var updateRunnable: Runnable? = null
-    private val UPDATE_INTERVAL = 60000L
+    private val UPDATE_INTERVAL = 0L
 
     inner class LocalBinder : Binder()
     override fun onBind(intent: Intent?): IBinder = binder
