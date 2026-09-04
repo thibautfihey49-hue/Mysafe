@@ -1,153 +1,221 @@
 package com.mysafe.mysafe
-import android.app.*
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Address
+import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.os.*
-import android.telephony.SmsManager
-import android.widget.Toast
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import org.osmdroid.util.GeoPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.IOException
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
-class LocationService : Service() {
-    companion object {
-        const val ACTION_START = "ACTION_START"
-        const val ACTION_STOP = "ACTION_STOP"
-        const val ACTION_UPDATE = "ACTION_UPDATE"
-        const val EXTRA_TARGET_PHONE = "target_phone"
-        const val EXTRA_MY_PHONE = "my_phone"
-        var isRunning = false
-        var lastLocation: GeoPoint? = null
-        var targetPhoneNumber: String = ""
-        var myPhoneNumber: String = ""
+class LocationService : android.app.Service() {
+    private val TAG = "MySafeLocation"
+    private var locationManager: LocationManager? = null
+    private var listener: LocationListener? = null
+    private var running = AtomicBoolean(false)
+    private val CHANNEL_ID = "mysafe_location_channel"
+    private val NOTIFICATION_ID = 12345
+
+    data class Position(
+        val latitude: Double,
+        val longitude: Double,
+        val time: String,
+        val address: String
+    ) {
+        fun isSameAs(other: Position?): Boolean {
+            if (other == null) return false
+            val latDiff = Math.abs(this.latitude - other.latitude)
+            val lonDiff = Math.abs(this.longitude - other.longitude)
+            return latDiff < 0.00005 && lonDiff < 0.00005 && this.address == other.address
+        }
     }
 
-    private val binder = LocalBinder()
-    private lateinit var locationManager: LocationManager
-    private lateinit var smsManager: SmsManager
-    private var handler = Handler(Looper.getMainLooper())
-    private var updateRunnable: Runnable? = null
-    private val UPDATE_INTERVAL = 60000L
-
-    inner class LocalBinder : Binder()
-    override fun onBind(intent: Intent?): IBinder = binder
-
-    private val locationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location) {
-            lastLocation = GeoPoint(location.latitude, location.longitude)
-            sendLocationBySms(location.latitude, location.longitude)
-            broadcastUpdate()
-        }
-        override fun onProviderEnabled(provider: String) {}
-        override fun onProviderDisabled(provider: String) {}
+    companion object {
+        val positions = mutableListOf<Position>()
+        var isRunning = AtomicBoolean(false)
+        var latestPosition: Position? = null
+        const val ACTION_NEW_POSITION = "com.mysafe.mysafe.NEW_POSITION"
+        const val EXTRA_LAT = "lat"
+        const val EXTRA_LON = "lon"
+        const val EXTRA_TIME = "time"
+        const val EXTRA_ADDRESS = "address"
     }
 
     override fun onCreate() {
         super.onCreate()
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        smsManager = SmsManager.getDefault()
         createNotificationChannel()
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> startMonitoring(intent)
-            ACTION_STOP -> stopMonitoring()
+        if (!running.get()) {
+            startForeground(NOTIFICATION_ID, buildNotification())
+            startLocationUpdates()
+            running.set(true)
+            isRunning.set(true)
+            Log.d(TAG, "✅ Service DÉMARRÉ")
         }
         return START_STICKY
     }
 
-    private fun startMonitoring(intent: Intent) {
-        if (isRunning) return
-        targetPhoneNumber = intent.getStringExtra(EXTRA_TARGET_PHONE) ?: ""
-        myPhoneNumber = intent.getStringExtra(EXTRA_MY_PHONE) ?: ""
-        startForeground(9999, createNotification())
-        isRunning = true
-
-        try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, UPDATE_INTERVAL, 10f, locationListener)
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, UPDATE_INTERVAL, 10f, locationListener)
-        } catch (e: SecurityException) {}
-
-        updateRunnable = object : Runnable {
-            override fun run() {
-                requestSingleLocation()
-                handler.postDelayed(this, UPDATE_INTERVAL)
+    private fun startLocationUpdates() {
+        listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                handleNewLocation(location)
             }
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
         }
-        handler.postDelayed(updateRunnable!!, 0)
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.e(TAG, "❌ Autorisations manquantes")
+            return
+        }
+
+        locationManager?.requestLocationUpdates(
+            LocationManager.GPS_PROVIDER,
+            60000L,
+            0f,
+            listener!!
+        )
+        locationManager?.requestLocationUpdates(
+            LocationManager.NETWORK_PROVIDER,
+            60000L,
+            0f,
+            listener!!
+        )
     }
 
-    private fun requestSingleLocation() {
-        try {
-            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            lastKnown?.let {
-                lastLocation = GeoPoint(it.latitude, it.longitude)
-                sendLocationBySms(it.latitude, it.longitude)
-                broadcastUpdate()
+    private fun handleNewLocation(location: Location) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(Date())
+            val address = getAddress(location.latitude, location.longitude)
+
+            val position = Position(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                time = time,
+                address = address
+            )
+
+            // ✅ IGNORER SI MÊME POSITION — PAS DE DOUBLON
+            if (position.isSameAs(latestPosition)) {
+                Log.d(TAG, "⏭ Position identique — ignorée")
+                return@launch
             }
-        } catch (e: SecurityException) {}
-    }
 
-    private fun sendLocationBySms(lat: Double, lon: Double) {
-        if (targetPhoneNumber.isBlank()) return
-        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val message = "MYSAFE:$lat:$lon:$time:${myPhoneNumber.takeLast(4)}"
-        try {
-            // ✅ Corrigé : port = 0 (Short), pas ByteArray
-            smsManager.sendDataMessage(targetPhoneNumber, null, 0.toShort(), message.toByteArray(Charsets.UTF_8), null, null)
-        } catch (e: Exception) {
-            try { smsManager.sendTextMessage(targetPhoneNumber, null, message, null, null) } catch (e2: Exception) {}
+            // ✅ NOUVELLE POSITION DIFFÉRENTE → AJOUT
+            synchronized(positions) {
+                positions.add(0, position)
+                if (positions.size > 100) positions.removeAt(positions.size - 1)
+            }
+
+            latestPosition = position
+            Log.d(TAG, "📍 Nouvelle position: $time - $address")
+
+            val broadcast = Intent(ACTION_NEW_POSITION).apply {
+                setPackage(packageName)
+                putExtra(EXTRA_LAT, location.latitude)
+                putExtra(EXTRA_LON, location.longitude)
+                putExtra(EXTRA_TIME, time)
+                putExtra(EXTRA_ADDRESS, address)
+            }
+            sendBroadcast(broadcast)
         }
     }
 
-    private fun broadcastUpdate() {
-        val intent = Intent(ACTION_UPDATE)
-        intent.putExtra("lat", lastLocation?.latitude ?: 0.0)
-        intent.putExtra("lon", lastLocation?.longitude ?: 0.0)
-        sendBroadcast(intent)
+    private fun getAddress(lat: Double, lon: Double): String {
+        return try {
+            val geocoder = Geocoder(this, Locale.FRANCE)
+            val addresses: MutableList<Address>? = geocoder.getFromLocation(lat, lon, 1)
+            if (!addresses.isNullOrEmpty()) {
+                val addr = addresses[0]
+                val parts = mutableListOf<String>()
+                for (i in 0..addr.maxAddressLineIndex) {
+                    parts.add(addr.getAddressLine(i))
+                }
+                if (parts.isNotEmpty()) parts.joinToString(", ") else "Coordonnées seulement"
+            } else "Adresse introuvable"
+        } catch (e: IOException) {
+            "Erreur adresse: ${e.message}"
+        }
     }
 
-    private fun stopMonitoring() {
-        isRunning = false
-        updateRunnable?.let { handler.removeCallbacks(it) }
-        try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+    private fun buildNotification(): Notification {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("MySafe — Surveillance active")
+            .setContentText("Mise à jour toutes les minutes")
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .build()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val chan = NotificationChannel("MYSAFE_SVC", "Surveillance", NotificationManager.IMPORTANCE_MIN).apply {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "MySafe Localisation",
+                android.app.NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "Service de suivi de position"
                 setShowBadge(false)
                 enableVibration(false)
-                enableLights(false)
-                // ✅ Corrigé : utiliser la bonne constante
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                setSound(null, null)
             }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(chan)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
-    }
-
-    private fun createNotification(): Notification {
-        return NotificationCompat.Builder(this, "MYSAFE_SVC")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("")
-            .setContentText("")
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .build()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        stopMonitoring()
+        running.set(false)
+        isRunning.set(false)
+        try {
+            locationManager?.removeUpdates(listener!!)
+        } catch (e: Exception) {}
+        Log.d(TAG, "⏹ Service arrêté")
     }
+
+    override fun onBind(intent: Intent?): IBinder? = null
 }
