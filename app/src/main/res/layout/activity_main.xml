@@ -3,35 +3,67 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#FFFFFF"
-    android:gravity="center">
+    android:background="#FFFFFF">
 
+    <!-- 🗺️ CARTE via WebView — SANS OSMDROID ! -->
+    <WebView
+        android:id="@+id/map_webview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- 📍 Position actuelle -->
     <TextView
-        android:layout_width="wrap_content"
+        android:id="@+id/position_tv"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="✅ MySafe v1.1"
-        android:textSize="24sp"
-        android:textStyle="bold"/>
+        android:text="📍 En attente de position..."
+        android:padding="10dp"
+        android:textSize="13sp"
+        android:background="#F5F5F5"/>
 
+    <!-- 📜 Historique -->
     <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Si tu vois cet écran = ÇA MARCHE !"
-        android:textSize="16sp"
-        android:layout_marginTop="20dp"/>
+        android:text="📜 Historique"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:padding="5dp"
+        android:layout_marginTop="2dp"/>
 
-    <Button
-        android:id="@+id/start_btn"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:text="▶ Démarrer"
-        android:layout_marginTop="30dp"/>
+    <ListView
+        android:id="@+id/history_list"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"/>
 
-    <Button
-        android:id="@+id/stop_btn"
-        android:layout_width="200dp"
+    <!-- 🎮 Boutons -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⏹ Arrêter"
-        android:layout_marginTop="10dp"/>
+        android:orientation="horizontal"
+        android:padding="5dp">
+
+        <Button
+            android:id="@+id/start_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="▶ Démarrer"/>
+
+        <Button
+            android:id="@+id/stop_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏹ Arrêter"/>
+
+        <Button
+            android:id="@+id/camera_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📹 Caméra"/>
+    </LinearLayout>
 
 </LinearLayout>

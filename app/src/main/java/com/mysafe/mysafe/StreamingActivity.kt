@@ -6,6 +6,9 @@ import android.widget.TextView
 class StreamingActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(TextView(this).apply { text = "📹 Caméra" })
+        val tv = TextView(this)
+        tv.text = "📹 Caméra en cours de développement..."
+        tv.gravity = android.view.Gravity.CENTER
+        setContentView(tv)
     }
 }
