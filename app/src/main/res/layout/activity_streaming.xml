@@ -35,41 +35,52 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:padding="4dp"
         android:background="#222222">
 
         <Button
             android:id="@+id/flip_btn"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:text="🔄 Caméra avant/arrière"
-            android:layout_marginEnd="4dp"
+            android:text="🔄 Caméra"
+            android:layout_marginEnd="2dp"
             android:background="#444444"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"/>
+            android:textSize="13sp"/>
 
         <Button
             android:id="@+id/mic_btn"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:text="🎙️ Micro: ACTIF"
-            android:layout_marginEnd="4dp"
+            android:text="🎙️ Micro: ON"
+            android:layout_marginEnd="2dp"
             android:background="#66BB6A"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"/>
+            android:textSize="13sp"/>
+
+        <Button
+            android:id="@+id/hide_indicators_btn"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="👁️ Masquer témoins"
+            android:layout_marginEnd="2dp"
+            android:background="#9C27B0"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"/>
 
         <Button
             android:id="@+id/stop_btn"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:text="⏹ RETOUR"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="2dp"
             android:background="#F44336"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"/>
+            android:textSize="13sp"/>
     </LinearLayout>
 
 </LinearLayout>
