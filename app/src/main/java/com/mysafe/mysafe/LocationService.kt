@@ -25,15 +25,7 @@ class LocationService : android.app.Service() {
     private var running = AtomicBoolean(false)
     private val CHANNEL = "mysafe"
 
-    data class Position(val lat: Double, val lon: Double, val time: String) {
-        fun sameAs(other: Position?) = other != null &&
-            Math.abs(lat - other.lat) < 0.00005 &&
-            Math.abs(lon - other.lon) < 0.00005
-    }
-
     companion object {
-        val positions = mutableListOf<Position>()
-        var lastPos: Position? = null
         const val ACTION_UPDATE = "com.mysafe.UPDATE"
     }
 
@@ -50,7 +42,7 @@ class LocationService : android.app.Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!running.get()) {
             startForeground(1, NotificationCompat.Builder(this, CHANNEL)
-                .setContentTitle("Surveillance active — MàJ toutes les minutes")
+                .setContentTitle("📍 Surveillance GPS ACTIVE")
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setOngoing(true)
                 .build())
@@ -64,13 +56,6 @@ class LocationService : android.app.Service() {
         listener = object : LocationListener {
             override fun onLocationChanged(loc: Location) {
                 val t = SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(Date())
-                val pos = Position(loc.latitude, loc.longitude, t)
-                if (pos.sameAs(lastPos)) return
-                synchronized(positions) {
-                    positions.add(0, pos)
-                    if (positions.size > 50) positions.removeAt(positions.size - 1)
-                }
-                lastPos = pos
                 sendBroadcast(Intent(ACTION_UPDATE).apply {
                     setPackage(packageName)
                     putExtra("lat", loc.latitude)
@@ -82,7 +67,7 @@ class LocationService : android.app.Service() {
             override fun onProviderEnabled(p: String) {}
             override fun onProviderDisabled(p: String) {}
         }
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             lm?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000L, 0f, listener!!)
             lm?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000L, 0f, listener!!)
         }
