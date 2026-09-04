@@ -4,13 +4,13 @@ import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
-import android.provider.Settings
+import android.view.Gravity
 import android.view.View
 import android.widget.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import org.osmdroid.config.Configuration
@@ -19,6 +19,15 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
+
+data class HistoryItem(
+    val lat: Double,
+    val lon: Double,
+    val time: String,
+    val from: String
+)
 
 class MainActivity : AppCompatActivity() {
     private lateinit var map: MapView
@@ -29,10 +38,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var lastUpdateText: TextView
     private lateinit var titleHeader: TextView
     private lateinit var hiddenMenu: LinearLayout
+    private lateinit var historyContainer: LinearLayout
+    
     private var myPhoneNumber = ""
     private var isMonitoring = false
     private var positionMarker: Marker? = null
     private var titleClickCount = 0
+    
+    // ✅ Historique SANS DOUBLONS
+    private val history = mutableListOf<HistoryItem>()
+    private val MIN_HISTORY_DISTANCE_METERS = 50f  // ✅ Même rue = pas de doublon
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -42,6 +57,7 @@ class MainActivity : AppCompatActivity() {
             val time = intent.getStringExtra("time") ?: "--:--:--"
             val from = intent.getStringExtra("from") ?: "???"
             updateMapPosition(lat, lon, time, from)
+            addToHistory(lat, lon, time, from)
         }
     }
 
@@ -49,7 +65,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // ✅ Initialisation du stockage pour la carte
         val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
         osmdroidDir.mkdirs()
         Configuration.getInstance().osmdroidBasePath = osmdroidDir
@@ -68,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         lastUpdateText = findViewById(R.id.last_update)
         titleHeader = findViewById(R.id.title_header)
         hiddenMenu = findViewById(R.id.hidden_menu)
+        historyContainer = findViewById(R.id.history_container)
 
         myPhoneNumber = getMyPhoneNumber()
         myPhoneInput.setText(myPhoneNumber)
@@ -135,7 +151,11 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "🟢 Surveillance active\nPosition toutes les 1min30"
             statusText.setTextColor(Color.GREEN)
             Toast.makeText(this, "Surveillance démarrée !", Toast.LENGTH_SHORT).show()
-            LocationService.lastLocation?.let { updateMapPosition(it.latitude, it.longitude, "MAINTENANT", "MOI") }
+            LocationService.lastLocation?.let { 
+                val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                updateMapPosition(it.latitude, it.longitude, time, "MOI")
+                addToHistory(it.latitude, it.longitude, time, "MOI")
+            }
         } else {
             val intent = Intent(this, LocationService::class.java)
             intent.action = LocationService.ACTION_STOP
@@ -164,6 +184,81 @@ class MainActivity : AppCompatActivity() {
             map.controller?.animateTo(point)
             map.invalidate()
             lastUpdateText.text = "📍 MàJ : $time — Depuis : $from"
+        }
+    }
+
+    // ✅ AJOUT À L'HISTORIQUE SANS DOUBLONS
+    private fun addToHistory(lat: Double, lon: Double, time: String, from: String) {
+        runOnUiThread {
+            // Vérifie si c'est trop proche de la dernière entrée
+            val lastItem = history.lastOrNull()
+            if (lastItem != null) {
+                val distance = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    lastItem.lat, lastItem.lon, lat, lon, distance
+                )
+                if (distance[0] < MIN_HISTORY_DISTANCE_METERS) {
+                    return  // ✅ Même zone → ignore
+                }
+            }
+
+            val item = HistoryItem(lat, lon, time, from)
+            history.add(item)
+
+            // Créer la ligne dans la liste
+            val entry = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(8, 6, 8, 6)
+                setBackgroundColor(0xFFF0F0F0.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 2, 0, 2) }
+            }
+
+            val timeText = TextView(this).apply {
+                text = time
+                textSize = 12f
+                setTextColor(0xFF666666.toInt())
+                setPadding(0, 0, 8, 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val coordText = TextView(this).apply {
+                text = "$lat,$lon"
+                textSize = 11f
+                setTextColor(0xFF333333.toInt())
+                setPadding(0, 0, 8, 0)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxLines = 1
+            }
+
+            val mapBtn = TextView(this).apply {
+                text = "🌍 Maps"
+                textSize = 11f
+                setTextColor(0xFFFFFFFF.toInt())
+                setBackgroundColor(0xFF4285F4.toInt())
+                setPadding(12, 4, 12, 4)
+                gravity = Gravity.CENTER
+                setOnClickListener {
+                    val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon")
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            entry.addView(timeText)
+            entry.addView(coordText)
+            entry.addView(mapBtn)
+            
+            historyContainer.addView(entry, 0)  // ✅ Nouvelle en haut
         }
     }
 

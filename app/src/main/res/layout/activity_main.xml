@@ -1,67 +1,182 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="#F5F5F5" android:padding="8dp">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F5F5"
+    android:padding="8dp">
 
-    <TextView android:id="@+id/title_header"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="🔒 MySafe — Partage de position discret"
-        android:textSize="18sp" android:textStyle="bold" android:gravity="center"
-        android:padding="12dp" android:background="#E3F2FD" android:textColor="#1565C1"
-        android:clickable="true" android:focusable="true"/>
+    <TextView
+        android:id="@+id/title_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🌸 MySafe GPS"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="12dp"
+        android:textColor="#333333"/>
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="8dp" android:background="#FFFFFF" android:layout_marginBottom="8dp">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="📱 Mon numéro :" android:textSize="14sp" android:textStyle="bold"/>
-        <EditText android:id="@+id/my_phone" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="+33612345678" android:inputType="phone" android:layout_marginBottom="8dp"/>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="🎯 Numéro à surveiller :" android:textSize="14sp" android:textStyle="bold"/>
-        <EditText android:id="@+id/target_phone" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="+33687654321" android:inputType="phone"/>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📱 Mon numéro:"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:padding="8dp"/>
+
+        <EditText
+            android:id="@+id/my_phone"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="+33..."
+            android:inputType="phone"
+            android:padding="8dp"
+            android:background="@android:drawable/edit_text"/>
     </LinearLayout>
 
-    <Button android:id="@+id/toggle_btn"
-        android:layout_width="match_parent" android:layout_height="55dp"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎯 Cible:"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:padding="8dp"/>
+
+        <EditText
+            android:id="@+id/target_phone"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="+33..."
+            android:inputType="phone"
+            android:padding="8dp"
+            android:background="@android:drawable/edit_text"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/toggle_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:text="▶ DEMARRER LA SURVEILLANCE"
-        android:background="#4CAF50" android:textColor="#FFFFFF"
-        android:textSize="15sp" android:textStyle="bold" android:layout_marginBottom="8dp"/>
+        android:background="#4CAF50"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp"/>
 
-    <TextView android:id="@+id/status"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="🔴 Surveillance arrêtée" android:textSize="14sp"
-        android:padding="10dp" android:background="#E0E0E0" android:textColor="#757575"
-        android:gravity="center" android:layout_marginBottom="8dp"/>
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔴 Surveillance arrêtée"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:textColor="#888888"
+        android:layout_marginBottom="8dp"/>
 
-    <TextView android:id="@+id/last_update"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="📍 En attente de position..." android:textSize="13sp"
-        android:padding="8dp" android:background="#FFF3E0" android:textColor="#E65100"
-        android:gravity="center" android:layout_marginBottom="8dp"/>
+    <TextView
+        android:id="@+id/last_update"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📍 MàJ : --:--:--"
+        android:gravity="center"
+        android:textSize="13sp"
+        android:textColor="#555555"
+        android:layout_marginBottom="4dp"/>
 
-    <LinearLayout android:id="@+id/hidden_menu"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:background="#ECEFF1" android:padding="8dp"
-        android:layout_marginBottom="8dp" android:visibility="gone">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="📹 Menu Streaming WiFi Direct" android:textSize="14sp" android:textStyle="bold"
-            android:padding="8dp" android:gravity="center"/>
-        <Button android:id="@+id/stream_video_btn"
-            android:layout_width="match_parent" android:layout_height="45dp"
-            android:text="📹 STREAMING VIDÉO" android:layout_margin="2dp"
-            android:background="#FF5722" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/stream_audio_btn"
-            android:layout_width="match_parent" android:layout_height="45dp"
-            android:text="🎙️ STREAMING AUDIO" android:layout_margin="2dp"
-            android:background="#E91E63" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/stream_stop_btn"
-            android:layout_width="match_parent" android:layout_height="45dp"
-            android:text="⏹ ARRETER TOUT" android:layout_margin="2dp"
-            android:background="#607D8B" android:textColor="#FFFFFF"/>
+    <org.osmdroid.views.MapView
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#E8E8E8"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📋 Historique des positions"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:padding="8dp"
+        android:textColor="#333333"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:id="@+id/history_container"
+                android:orientation="vertical"
+                android:padding="4dp"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/hidden_menu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#E3F2FD"
+        android:padding="8dp"
+        android:layout_marginTop="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📹 Menu Streaming"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:padding="4dp"/>
+
+        <Button
+            android:id="@+id/stream_video_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📹 Activer caméra à distance"
+            android:background="#2196F3"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="4dp"/>
+
+        <Button
+            android:id="@+id/stream_audio_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🎤 Activer micro à distance"
+            android:background="#FF9800"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="4dp"/>
+
+        <Button
+            android:id="@+id/stream_stop_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⏹ Arrêter tout"
+            android:background="#F44336"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="4dp"/>
     </LinearLayout>
 
-    <org.osmdroid.views.MapView android:id="@+id/map"
-        android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:background="#E8E8E8"/>
 </LinearLayout>
