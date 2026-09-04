@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import org.osmdroid.config.Configuration
+import java.io.File
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -51,7 +52,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         // ✅ Corrigé : PreferenceManager depuis android.preference
-        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
+        // ✅ Initialisation du stockage pour la carte
+val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
+osmdroidDir.mkdirs()
+Configuration.getInstance().osmdroidBasePath = osmdroidDir
+Configuration.getInstance().osmdroidTileCache = File(osmdroidDir, "tiles")
+Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
         
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
