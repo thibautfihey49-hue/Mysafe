@@ -63,11 +63,8 @@ class StreamingActivity : AppCompatActivity() {
         }
 
         flipBtn.setOnClickListener { flipCamera() }
-
         micBtn.setOnClickListener { toggleMicrophone() }
-
         testSoundBtn.setOnClickListener { toggleSoundTest() }
-
         findViewById<Button>(R.id.hide_indicators_btn).setOnClickListener {
             showHideIndicatorsGuide()
         }
@@ -113,7 +110,7 @@ class StreamingActivity : AppCompatActivity() {
 
             camera = Camera.open(cameraId)
             
-            // ✅ CORRECTION DEFINITIVE DE L'ORIENTATION
+            // ✅ CORRECTION COMPLETE DE L'ORIENTATION CAMERA AVANT/ARRIERE
             val rotation = windowManager.defaultDisplay.rotation
             val degrees = when (rotation) {
                 Surface.ROTATION_0 -> 0
@@ -124,12 +121,28 @@ class StreamingActivity : AppCompatActivity() {
             }
             val info = Camera.CameraInfo()
             Camera.getCameraInfo(cameraId, info)
-            var result = when (info.facing) {
-                Camera.CameraInfo.CAMERA_FACING_FRONT -> (info.orientation + degrees) % 360
-                Camera.CameraInfo.CAMERA_FACING_BACK -> (info.orientation - degrees + 360) % 360
-                else -> 0
+            
+            val displayOrientation: Int = when (info.facing) {
+                Camera.CameraInfo.CAMERA_FACING_FRONT -> {
+                    // ✅ Caméra avant : correction du miroir et de l'orientation
+                    val mirrored = (info.orientation + degrees) % 360
+                    (360 - mirrored) % 360
+                }
+                Camera.CameraInfo.CAMERA_FACING_BACK -> {
+                    // ✅ Caméra arrière : orientation standard
+                    (info.orientation - degrees + 360) % 360
+                }
+                else -> degrees
             }
-            camera?.setDisplayOrientation(result)
+            
+            camera?.setDisplayOrientation(displayOrientation)
+            
+            // ✅ Appliquer la mise en miroir pour la caméra avant
+            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                val params = camera?.parameters
+                params?.set("preview-flip", "flip-horizontal")
+                camera?.parameters = params
+            }
             
             camera?.setPreviewDisplay(holder)
             camera?.startPreview()
@@ -175,7 +188,6 @@ class StreamingActivity : AppCompatActivity() {
         testSoundBtn.setBackgroundColor(0xFF4CAF50.toInt())
         statusText.text = "🔊 ECOUTE EN DIRECT — Parle ! Tu devrais t'entendre !"
 
-        // ✅ Initialisation du lecteur audio pour DIFFUSER le son capturé
         audioTrack = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -196,7 +208,6 @@ class StreamingActivity : AppCompatActivity() {
 
         audioTrack?.play()
 
-        // ✅ BOUCLE EN TEMPS RÉEL : Capturer -> Diffuser = tu t'entends INSTANTANÉMENT
         audioJob = CoroutineScope(Dispatchers.IO).launch {
             val buffer = ByteArray(bufferSize)
             while (soundTestActive.get() && isActive) {
