@@ -9,7 +9,7 @@
         android:id="@+id/title_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📹 CAMÉRA EN DIRECT"
+        android:text="📹 CAMÉRA + MICRO EN DIRECT"
         android:textColor="#FFFFFF"
         android:textSize="18sp"
         android:textStyle="bold"
@@ -17,11 +17,19 @@
         android:padding="12dp"
         android:background="#222222"/>
 
-    <SurfaceView
-        android:id="@+id/surface_view"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_weight="1"
+        android:gravity="center"
+        android:background="#000000">
+
+        <SurfaceView
+            android:id="@+id/surface_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"/>
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -33,22 +41,35 @@
         <Button
             android:id="@+id/flip_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:text="🔄 Caméra avant/arrière"
             android:layout_marginEnd="4dp"
             android:background="#444444"
-            android:textColor="#FFFFFF"/>
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"/>
+
+        <Button
+            android:id="@+id/mic_btn"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
+            android:text="🎙️ Micro: ACTIF"
+            android:layout_marginEnd="4dp"
+            android:background="#66BB6A"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"/>
 
         <Button
             android:id="@+id/stop_btn"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:text="⏹ RETOUR"
             android:layout_marginStart="4dp"
             android:background="#F44336"
-            android:textColor="#FFFFFF"/>
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"/>
     </LinearLayout>
 
 </LinearLayout>
