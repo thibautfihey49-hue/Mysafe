@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="#000000">
+
+    <TextView android:id="@+id/title_text"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="📹 Streaming" android:textSize="18sp" android:textStyle="bold"
+        android:gravity="center" android:padding="12dp" android:textColor="#FFFFFF"
+        android:background="#212121"/>
+
+    <SurfaceView android:id="@+id/surface_view"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:background="#000000"/>
+
+    <Button android:id="@+id/stop_btn"
+        android:layout_width="match_parent" android:layout_height="55dp"
+        android:text="⏹ ARRETER ET RETOUR"
+        android:background="#F44336" android:textColor="#FFFFFF"
+        android:textSize="15sp" android:textStyle="bold"/>
+</LinearLayout>
