@@ -9,16 +9,16 @@
         android:id="@+id/title_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📹 Streaming Vidéo"
+        android:text="📹 CAMÉRA EN DIRECT"
         android:textColor="#FFFFFF"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:padding="16dp"
+        android:padding="12dp"
         android:background="#222222"/>
 
-    <androidx.camera.view.PreviewView
-        android:id="@+id/preview_view"
+    <SurfaceView
+        android:id="@+id/surface_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
@@ -33,20 +33,22 @@
         <Button
             android:id="@+id/flip_btn"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:text="🔄 Retourner caméra"
-            android:layout_marginEnd="4dp"/>
+            android:text="🔄 Caméra avant/arrière"
+            android:layout_marginEnd="4dp"
+            android:background="#444444"
+            android:textColor="#FFFFFF"/>
 
         <Button
             android:id="@+id/stop_btn"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:text="⏹ ARRETER ET RETOUR"
-            android:background="#008866"
-            android:textColor="#FFFFFF"
-            android:layout_marginStart="4dp"/>
+            android:text="⏹ RETOUR"
+            android:layout_marginStart="4dp"
+            android:background="#F44336"
+            android:textColor="#FFFFFF"/>
     </LinearLayout>
 
 </LinearLayout>
