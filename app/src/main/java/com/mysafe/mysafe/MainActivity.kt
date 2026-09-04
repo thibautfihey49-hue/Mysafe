@@ -176,9 +176,9 @@ class MainActivity : AppCompatActivity() {
 
             isMonitoring = true
             toggleBtn.text = "⏹ ARRETER LA SURVEILLANCE"
-            toggleBtn.setBackgroundColor(Color.RED)
-            statusText.text = "🟢 Surveillance active\nPosition toutes les 1min30"
-            statusText.setTextColor(Color.GREEN)
+            toggleBtn.setBackgroundColor(Color.parseColor("#EF4444"))
+            statusText.text = "🟢 Surveillance active"
+            statusText.setTextColor(Color.parseColor("#065F46"))
             Toast.makeText(this, "Surveillance démarrée !", Toast.LENGTH_SHORT).show()
             LocationService.lastLocation?.let { 
                 val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
@@ -193,9 +193,9 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
             isMonitoring = false
             toggleBtn.text = "▶ DEMARRER LA SURVEILLANCE"
-            toggleBtn.setBackgroundColor(Color.parseColor("#4CAF50"))
+            toggleBtn.setBackgroundColor(Color.parseColor("#10B981"))
             statusText.text = "🔴 Surveillance arrêtée"
-            statusText.setTextColor(Color.GRAY)
+            statusText.setTextColor(Color.parseColor("#6B7280"))
             Toast.makeText(this, "Surveillance arrêtée", Toast.LENGTH_SHORT).show()
         }
     }
@@ -236,29 +236,35 @@ class MainActivity : AppCompatActivity() {
             history.add(item)
             
             runOnUiThread {
+                // 📏 LIGNE HISTORIQUE MODERNE : MOITIÉ TEXTE / MOITIÉ MINI-CARTE
                 val entry = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(8, 8, 8, 8)
-                    setBackgroundColor(0xFFF0F0F0.toInt())
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(12, 12, 12, 12)
+                    setBackgroundColor(0xFFFFFFFF.toInt())
+                    elevation = 2f
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 4, 0, 4) }
+                    ).apply { setMargins(0, 0, 0, 10) }
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(0xFFFFFFFF.toInt())
+                        cornerRadius = 16f
+                    }
                 }
 
-                val topRow = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
+                // 📍 MOITIÉ GAUCHE : Heure + Adresse
+                val textPart = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                    setPadding(0, 0, 12, 0)
+                    gravity = Gravity.CENTER_VERTICAL
                 }
 
                 val timeText = TextView(this@MainActivity).apply {
-                    text = time
+                    text = "🕐 $time"
                     textSize = 12f
-                    setTextColor(0xFF666666.toInt())
-                    setPadding(0, 0, 8, 0)
+                    setTextColor(0xFF6B7280.toInt())
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
@@ -266,30 +272,29 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val addrText = TextView(this@MainActivity).apply {
-                    text = address
-                    textSize = 13f
-                    setTextColor(0xFF222222.toInt())
-                    setPadding(0, 0, 8, 0)
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    text = "📍 $address"
+                    textSize = 14f
+                    setTextColor(0xFF1F2937.toInt())
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                    maxLines = 1
-                    isSingleLine = true
+                    maxLines = 2
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
                 }
 
-                topRow.addView(timeText)
-                topRow.addView(addrText)
+                textPart.addView(timeText)
+                textPart.addView(addrText)
 
+                // 🗺️ MOITIÉ DROITE : Mini-carte
                 val miniMap = MapView(this@MainActivity).apply {
                     setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
                     setMultiTouchControls(false)
-                    isClickable = false
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        120
-                    )
+                    isClickable = true
+                    layoutParams = LinearLayout.LayoutParams(0, 100, 1f)
                     controller?.setZoom(14.0)
                     controller?.setCenter(GeoPoint(lat, lon))
-                    setBackgroundColor(0xFFE8E8E8.toInt())
+                    setBackgroundColor(0xFFF3F4F6.toInt())
                     val miniMarker = Marker(this).apply {
                         position = GeoPoint(lat, lon)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -302,7 +307,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                entry.addView(topRow)
+                entry.addView(textPart)
                 entry.addView(miniMap)
                 
                 historyContainer.addView(entry, 0)
