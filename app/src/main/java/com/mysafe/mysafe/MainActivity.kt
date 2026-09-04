@@ -1,4 +1,5 @@
 package com.mysafe.mysafe
+
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
@@ -13,12 +14,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import org.osmdroid.config.Configuration
-import java.io.File
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
     private lateinit var map: MapView
@@ -31,9 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var hiddenMenu: LinearLayout
     private var myPhoneNumber = ""
     private var isMonitoring = false
-    private val positions = mutableListOf<GeoPoint>()
     private var positionMarker: Marker? = null
-    private var pathLine: Polyline? = null
     private var titleClickCount = 0
 
     private val positionReceiver = object : BroadcastReceiver() {
@@ -51,20 +49,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // ✅ Corrigé : PreferenceManager depuis android.preference
         // ✅ Initialisation du stockage pour la carte
-val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
-osmdroidDir.mkdirs()
-Configuration.getInstance().osmdroidBasePath = osmdroidDir
-Configuration.getInstance().osmdroidTileCache = File(osmdroidDir, "tiles")
-Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
-        
+        val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
+        osmdroidDir.mkdirs()
+        Configuration.getInstance().osmdroidBasePath = osmdroidDir
+        Configuration.getInstance().osmdroidTileCache = File(osmdroidDir, "tiles")
+        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
+
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         map.setMultiTouchControls(true)
-        // ✅ Corrigé : .controller est une propriété, pas une fonction
         map.controller?.setZoom(15.0)
-        
+
         statusText = findViewById(R.id.status)
         targetPhoneInput = findViewById(R.id.target_phone)
         myPhoneInput = findViewById(R.id.my_phone)
@@ -132,11 +128,11 @@ Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPrefere
             intent.putExtra(LocationService.EXTRA_TARGET_PHONE, targetPhone)
             intent.putExtra(LocationService.EXTRA_MY_PHONE, myPhone)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-            
+
             isMonitoring = true
             toggleBtn.text = "⏹ ARRETER LA SURVEILLANCE"
             toggleBtn.setBackgroundColor(Color.RED)
-            statusText.text = "🟢 Surveillance active\nPosition chaque minute"
+            statusText.text = "🟢 Surveillance active\nPosition toutes les 1min30"
             statusText.setTextColor(Color.GREEN)
             Toast.makeText(this, "Surveillance démarrée !", Toast.LENGTH_SHORT).show()
             LocationService.lastLocation?.let { updateMapPosition(it.latitude, it.longitude, "MAINTENANT", "MOI") }
@@ -165,9 +161,6 @@ Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPrefere
                 icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
             }
             map.overlays.add(positionMarker)
-                map.overlays.add(pathLine)
-            }
-            // ✅ Corrigé : controller est une propriété
             map.controller?.animateTo(point)
             map.invalidate()
             lastUpdateText.text = "📍 MàJ : $time — Depuis : $from"
