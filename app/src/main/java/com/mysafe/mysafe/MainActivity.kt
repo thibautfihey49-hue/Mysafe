@@ -32,7 +32,9 @@ class MainActivity : AppCompatActivity() {
                 val lon = intent.getDoubleExtra("lon", 0.0)
                 val time = intent.getStringExtra("time") ?: ""
                 updateMap(lat, lon, time)
-                updateHistory(time, lat, lon)
+                // ✅ AJOUT : Historique
+                historyAdapter.insert("$time | ${String.format("%.6f", lat)}, ${String.format("%.6f", lon)}", 0)
+                if (historyAdapter.count > 50) historyAdapter.remove(historyAdapter.getItem(49))
             }
         }
     }
@@ -50,8 +52,9 @@ class MainActivity : AppCompatActivity() {
         startBtn = findViewById(R.id.start_btn)
         stopBtn = findViewById(R.id.stop_btn)
         cameraBtn = findViewById(R.id.camera_btn)
-        historyList = findViewById(R.id.history_list)
 
+        // ✅ AJOUT : Initialisation liste
+        historyList = findViewById(R.id.history_list)
         historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         historyList.adapter = historyAdapter
 
@@ -87,13 +90,6 @@ class MainActivity : AppCompatActivity() {
             }
             marker?.position = point
             marker?.title = "$time\n$lat, $lon"
-        }
-    }
-
-    private fun updateHistory(time: String, lat: Double, lon: Double) {
-        runOnUiThread {
-            historyAdapter.insert("$time | ${String.format("%.6f", lat)}, ${String.format("%.6f", lon)}", 0)
-            if (historyAdapter.count > 50) historyAdapter.remove(historyAdapter.getItem(historyAdapter.count - 1))
         }
     }
 

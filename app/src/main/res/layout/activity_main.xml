@@ -4,36 +4,21 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- CARTE — EXACTEMENT COMME TU L'AVAIS -->
+    <!-- 🗺️ CARTE — EXACTEMENT COMME TU L'AVAIS -->
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
 
-    <!-- ✅ HISTORIQUE — JUSTE UNE LISTE, RIEN DE COMPLIQUÉ -->
-    <LinearLayout
+    <!-- ✅ LA SEULE CHOSE AJOUTÉE : LA LISTE DE L'HISTORIQUE -->
+    <ListView
+        android:id="@+id/history_list"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:orientation="vertical"
-        android:background="#FFFFFF">
+        android:layout_height="180dp"
+        android:background="#FFFFFF"/>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📜 Historique"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:padding="5dp"
-            android:background="#CCCCCC"/>
-
-        <ListView
-            android:id="@+id/history_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-    </LinearLayout>
-
-    <!-- BOUTONS — EXACTEMENT COMME TU L'AVAIS -->
+    <!-- 🎮 BOUTONS — EXACTEMENT COMME TU L'AVAIS -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
