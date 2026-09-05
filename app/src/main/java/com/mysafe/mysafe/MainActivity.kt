@@ -292,37 +292,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
     }
-}
-
-    private fun demanderPermissions() {
-        val permissionsManquantes = permissionsRequises.filter {
-            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != 
-                android.content.pm.PackageManager.PERMISSION_GRANTED
-        }.toTypedArray()
-        
-        if (permissionsManquantes.isNotEmpty()) {
-            androidx.core.app.ActivityCompat.requestPermissions(
-                this,
-                permissionsManquantes,
-                REQUETE_PERMISSIONS
-            )
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUETE_PERMISSIONS) {
-            val toutesAccordees = grantResults.all { 
-                it == android.content.pm.PackageManager.PERMISSION_GRANTED 
-            }
-            if (toutesAccordees) {
-                android.widget.Toast.makeText(this, "✅ Toutes les permissions accordées !", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                android.widget.Toast.makeText(this, "⚠️ Certaines permissions sont manquantes", android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-    }
