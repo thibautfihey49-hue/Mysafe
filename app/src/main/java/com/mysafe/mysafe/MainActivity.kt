@@ -34,21 +34,16 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var map: MapView
     private lateinit var statusText: TextView
     private lateinit var targetPhoneInput: EditText
-    private lateinit var myPhoneInput: EditText
-    private lateinit var toggleBtn: Button
     private lateinit var btnClearHistory: Button
     private lateinit var stream_video_btn: Button
     private lateinit var stream_audio_btn: Button
     private lateinit var btnFloatMap: Button
     private lateinit var historyListView: ListView
     
-    private var myMarker: Marker? = null
     private var otherMarker: Marker? = null
-    private var isTracking = false
     private lateinit var locationManager: LocationManager
     private val historyList = mutableListOf<String>()
     private lateinit var historyAdapter: ArrayAdapter<String>
-    private var lastLocation: Location? = null
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -56,18 +51,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val lat = intent.getDoubleExtra("lat", 0.0)
                 val lon = intent.getDoubleExtra("lon", 0.0)
                 val time = intent.getStringExtra("time") ?: "??:??:??"
-                Log.d(TAG, "📨 Position reçue: $lat, $lon")
+                Log.d(TAG, "📨 Position reçue DE L'AUTRE: $lat, $lon")
                 updateMapPosition(lat, lon, time)
-                Toast.makeText(this@MainActivity, "✅ Position reçue !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "✅ Position reçue DE L'AUTRE !", Toast.LENGTH_SHORT).show()
             }
-        }
-    }
-
-    private val envoyerPosReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val target = intent?.getStringExtra("target_phone") ?: return
-            Log.d(TAG, "📤 Demande d'envoyer position à: $target")
-            envoyerMaPosition(target)
         }
     }
 
@@ -82,8 +69,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
         map = findViewById(R.id.map)
         statusText = findViewById(R.id.status_text)
         targetPhoneInput = findViewById(R.id.target_phone_input)
-        myPhoneInput = findViewById(R.id.my_phone_input)
-        toggleBtn = findViewById(R.id.toggle_tracking_btn)
         btnClearHistory = findViewById(R.id.btn_clear_history)
         stream_video_btn = findViewById(R.id.stream_video_btn)
         stream_audio_btn = findViewById(R.id.stream_audio_btn)
@@ -102,29 +87,34 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         requestAllPermissions()
 
-        toggleBtn.setOnClickListener { toggleTracking() }
+        statusText.text = "⏳ En attente de la position de l'autre..."
+
         btnClearHistory.setOnClickListener {
             historyList.clear()
             historyAdapter.notifyDataSetChanged()
             Toast.makeText(this, "🗑️ Historique effacé", Toast.LENGTH_SHORT).show()
         }
 
+        // 📹 DEMANDER LA CAMÉRA DE L'AUTRE
         stream_video_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
-                Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⚠️ Entrez le numéro de l'autre d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             envoyerCommande(target, "MYSAFE_CAMERA_ON")
+            Toast.makeText(this, "📩 Demande CAMÉRA envoyée à l'autre !", Toast.LENGTH_SHORT).show()
         }
 
+        // 📍 DEMANDER LA POSITION DE L'AUTRE
         stream_audio_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
-                Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⚠️ Entrez le numéro de l'autre d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             envoyerCommande(target, "MYSAFE_SEND_POS")
+            Toast.makeText(this, "📩 Demande POSITION envoyée à l'autre !", Toast.LENGTH_SHORT).show()
         }
 
         btnFloatMap.setOnClickListener {
@@ -143,19 +133,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
-        registerReceiver(envoyerPosReceiver, IntentFilter("ENVOYER_POSITION"), RECEIVER_NOT_EXPORTED)
         
-        Log.d(TAG, "✅ MainActivity prête !")
+        Log.d(TAG, "✅ Émetteur prêt — commande uniquement")
     }
 
     private fun requestAllPermissions() {
         val needed = mutableListOf<String>()
-        
-        // 📍 Localisation
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-        // 📩 SMS — CRUCIAL POUR LA RÉCEPTION
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.SEND_SMS)
         }
@@ -165,18 +148,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.READ_SMS)
         }
-        // 📹 Streaming
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.CAMERA)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.RECORD_AUDIO)
-        }
-        
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
-        } else {
-            Toast.makeText(this, "✅ Toutes permissions déjà accordées !", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -188,115 +161,26 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 if (r != PackageManager.PERMISSION_GRANTED) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ TOUTES les permissions accordées ! Réception SMS active ✅", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "⚠️ Certaines permissions manquent — Réception SMS peut ne pas fonctionner", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "✅ Prêt ! Envoyez des commandes à l'autre téléphone", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun envoyerCommande(numero: String, commande: String) {
         Log.d(TAG, "📤 Envoi à $numero : $commande")
-        
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "❌ Permission SEND_SMS manquante", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ Permission SMS manquante", Toast.LENGTH_SHORT).show()
             return
         }
-        
         try {
             val smsManager = SmsManager.getDefault()
             try {
-                val donnees = commande.toByteArray(Charsets.UTF_8)
-                smsManager.sendDataMessage(numero, null, 50006.toShort(), donnees, null, null)
-                Toast.makeText(this, "📩 Commande envoyée (SMS de données) !", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "✅ SMS de données envoyé")
-                return
+                smsManager.sendDataMessage(numero, null, 50006.toShort(), commande.toByteArray(Charsets.UTF_8), null, null)
             } catch (e: Exception) {
-                Log.w(TAG, "SMS de données impossible, essai en SMS normal", e)
+                smsManager.sendTextMessage(numero, null, commande, null, null)
             }
-            smsManager.sendTextMessage(numero, null, commande, null, null)
-            Toast.makeText(this, "📩 Commande envoyée (SMS normal) !", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "✅ SMS normal envoyé")
         } catch (e: Exception) {
-            Toast.makeText(this, "❌ Échec envoi SMS : ${e.message}", Toast.LENGTH_LONG).show()
-            Log.e(TAG, "Erreur envoi SMS", e)
-        }
-    }
-
-    private fun envoyerMaPosition(numero: String) {
-        try {
-            val loc = lastLocation ?: run {
-                locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            }
-            if (loc == null) {
-                Toast.makeText(this, "❌ Position inconnue — activez le GPS", Toast.LENGTH_SHORT).show()
-                return
-            }
-            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-            val msg = "MYSAFE:${loc.latitude}:${loc.longitude}:$time:ME"
-            Log.d(TAG, "📤 Envoi ma position à $numero : $msg")
-            
-            try {
-                SmsManager.getDefault().sendDataMessage(numero, null, 50006.toShort(), msg.toByteArray(Charsets.UTF_8), null, null)
-            } catch (e: Exception) {
-                SmsManager.getDefault().sendTextMessage(numero, null, msg, null, null)
-            }
-            Toast.makeText(this, "📩 Position envoyée !", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "❌ Échec envoi position : ${e.message}", Toast.LENGTH_LONG).show()
-            Log.e(TAG, "Erreur envoi position", e)
-        }
-    }
-
-    private fun toggleTracking() {
-        if (isTracking) stopTracking() else startTracking()
-    }
-
-    private fun startTracking() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "⚠️ Autorisez la localisation d'abord", Toast.LENGTH_SHORT).show()
-            return
-        }
-        isTracking = true
-        toggleBtn.text = "⏹️ ARRÊTER LE SUIVI"
-        statusText.text = "✅ Suivi démarré — Envoi sur demande"
-        
-        try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 10f, this)
-        } catch (e: Exception) {
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000, 10f, this)
-        }
-    }
-
-    private fun stopTracking() {
-        isTracking = false
-        toggleBtn.text = "▶️ DÉMARRER LE SUIVI"
-        statusText.text = "⏸️ Suivi arrêté"
-        locationManager.removeUpdates(this)
-    }
-
-    override fun onLocationChanged(location: Location) {
-        lastLocation = location
-        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val gp = GeoPoint(location.latitude, location.longitude)
-        if (myMarker == null) {
-            myMarker = Marker(map).apply {
-                position = gp
-                icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
-                title = "Ma position"
-            }
-            map.overlays.add(myMarker)
-        } else {
-            myMarker?.position = gp
-        }
-        map.invalidate()
-        map.controller?.animateTo(gp)
-
-        val entry = "📍 MOI — $time\n${location.latitude}, ${location.longitude}"
-        if (!historyList.contains(entry)) {
-            historyList.add(0, entry)
-            historyAdapter.notifyDataSetChanged()
+            Toast.makeText(this, "❌ Échec envoi : ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -306,21 +190,25 @@ class MainActivity : AppCompatActivity(), LocationListener {
             otherMarker = Marker(map).apply {
                 position = gp
                 icon = resources.getDrawable(android.R.drawable.ic_menu_compass, null)
-                title = "Position cible"
+                title = "📍 Position de l'autre"
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             }
             map.overlays.add(otherMarker)
         } else {
             otherMarker?.position = gp
         }
         map.invalidate()
+        map.controller?.animateTo(gp)
+        statusText.text = "✅ Position de l'autre mise à jour"
 
-        val entry = "🎯 CIBLE — $time\n$lat, $lon"
+        val entry = "🎯 AUTRE — $time\n$lat, $lon"
         if (!historyList.contains(entry)) {
             historyList.add(0, entry)
             historyAdapter.notifyDataSetChanged()
         }
     }
 
+    override fun onLocationChanged(location: Location) {}
     override fun onStatusChanged(p: String?, s: Int, e: Bundle?) {}
     override fun onProviderEnabled(p: String) {}
     override fun onProviderDisabled(p: String) {}
@@ -329,6 +217,5 @@ class MainActivity : AppCompatActivity(), LocationListener {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
-        unregisterReceiver(envoyerPosReceiver)
     }
 }
