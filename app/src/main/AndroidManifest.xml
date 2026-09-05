@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.mysafe.mysafe">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- ✅ PERMISSIONS OBLIGATOIRES -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -20,22 +20,38 @@
         android:label="MySafe"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
-        
-        <activity android:name=".MainActivity" android:exported="true">
+        android:theme="@style/Theme.MySafe"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".StreamingActivity" android:exported="false" />
-        <service android:name=".LocationService" android:exported="false" />
-        <service android:name=".FloatingMapWindow" android:exported="false" />
-        
-        <receiver android:name=".SmsReceiver" android:exported="true">
+
+        <activity
+            android:name=".StreamingActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".FloatingMapWindow"
+            android:exported="false" />
+
+        <!-- ✅ RÉCEPTEUR SMS — EXPORTED FALSE + PRIORITÉ HAUTE = MASQUAGE -->
+        <receiver
+            android:name=".DataSMSReceiver"
+            android:exported="false"
+            android:priority="999">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name=".LocationService"
+            android:exported="false" />
     </application>
 </manifest>
