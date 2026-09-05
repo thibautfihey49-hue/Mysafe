@@ -24,7 +24,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
     private val REQUETE_PERMISSIONS = 12345
     private val permissionsRequises = arrayOf(
         android.Manifest.permission.ACCESS_FINE_LOCATION,
@@ -33,6 +33,37 @@ class MainActivity : AppCompatActivity() {
         android.Manifest.permission.RECEIVE_SMS,
         android.Manifest.permission.POST_NOTIFICATIONS
     )
+
+    private fun demanderPermissions() {
+        val permissionsManquantes = permissionsRequises.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != 
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+        if (permissionsManquantes.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this, permissionsManquantes, REQUETE_PERMISSIONS
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUETE_PERMISSIONS) {
+            val toutesAccordees = grantResults.all {
+                it == android.content.pm.PackageManager.PERMISSION_GRANTED
+            }
+            if (toutesAccordees) {
+                android.widget.Toast.makeText(this, "✅ Permissions accordées !", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(this, "⚠️ Permissions manquantes", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     init {
         // Initialiser le moteur de macros au démarrage
     }
@@ -73,9 +104,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         startService(Intent(this, MySafeAgentService::class.java))
         // ✅ Demander TOUTES les permissions au démarrage
-        demanderPermissions()
         startService(Intent(this, MySafeAgentService::class.java))
         setContentView(R.layout.activity_main)
+        demanderPermissions()
 
         val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
         Configuration.getInstance().osmdroidBasePath = osmdroidDir
