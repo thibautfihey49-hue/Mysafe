@@ -331,5 +331,5 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); map.onResume() }
     override fun onPause() { super.onPause(); map.onPause() }
     override fun onDestroy() { super.onDestroy(); unregisterReceiver(positionReceiver) }
-private val REQUETE_PERMISSIONS = 12345    private val permissionsRequises = arrayOf(        Manifest.permission.ACCESS_FINE_LOCATION,        Manifest.permission.ACCESS_COARSE_LOCATION,        Manifest.permission.SEND_SMS,        Manifest.permission.RECEIVE_SMS,        Manifest.permission.POST_NOTIFICATIONS    )    private fun demanderPermissions() {        val manquantes = permissionsRequises.filter {            androidx.core.content.ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_DENIED        }        if (manquantes.isNotEmpty()) {            ActivityCompat.requestPermissions(this, manquantes.toTypedArray(), REQUETE_PERMISSIONS)        }    }    override fun onRequestPermissionsResult(        requestCode: Int,        permissions: Array<out String>,        grantResults: IntArray    ) {        super.onRequestPermissionsResult(requestCode, permissions, grantResults)        if (requestCode == REQUETE_PERMISSIONS) {            val ok = grantResults.all { it == PackageManager.PERMISSION_GRANTED }        }    }
+
 }
