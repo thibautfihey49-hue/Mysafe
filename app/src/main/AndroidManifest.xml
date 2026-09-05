@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.mysafe.mysafe">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ✅ PERMISSIONS OBLIGATOIRES -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -40,7 +38,6 @@
             android:name=".FloatingMapWindow"
             android:exported="false" />
 
-        <!-- ✅ RÉCEPTEUR SMS — EXPORTED FALSE + PRIORITÉ HAUTE = MASQUAGE -->
         <receiver
             android:name=".DataSMSReceiver"
             android:exported="false"
