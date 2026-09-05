@@ -3,9 +3,6 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
@@ -25,7 +22,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : AppCompatActivity(), LocationListener {
+class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MySafe_Main"
         private const val REQUEST_PERMISSIONS = 1001
@@ -41,9 +38,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var historyListView: ListView
     
     private var otherMarker: Marker? = null
-    private lateinit var locationManager: LocationManager
     private val historyList = mutableListOf<String>()
     private lateinit var historyAdapter: ArrayAdapter<String>
+    private var derniereReception = 0L
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -51,9 +48,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val lat = intent.getDoubleExtra("lat", 0.0)
                 val lon = intent.getDoubleExtra("lon", 0.0)
                 val time = intent.getStringExtra("time") ?: "??:??:??"
-                Log.d(TAG, "📨 Position reçue DE L'AUTRE: $lat, $lon")
+                derniereReception = System.currentTimeMillis()
+                Log.d(TAG, "✅ ✅ POSITION REÇUE ! $lat, $lon")
                 updateMapPosition(lat, lon, time)
-                Toast.makeText(this@MainActivity, "✅ Position reçue DE L'AUTRE !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "✅ ✅ Position reçue !", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -83,11 +81,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historyList)
         historyListView.adapter = historyAdapter
 
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        statusText.text = "⏳ En attente de commande..."
 
         requestAllPermissions()
-
-        statusText.text = "⏳ En attente de la position de l'autre..."
 
         btnClearHistory.setOnClickListener {
             historyList.clear()
@@ -95,26 +91,32 @@ class MainActivity : AppCompatActivity(), LocationListener {
             Toast.makeText(this, "🗑️ Historique effacé", Toast.LENGTH_SHORT).show()
         }
 
-        // 📹 DEMANDER LA CAMÉRA DE L'AUTRE
         stream_video_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
-                Toast.makeText(this, "⚠️ Entrez le numéro de l'autre d'abord !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⚠️ Entrez le numéro d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             envoyerCommande(target, "MYSAFE_CAMERA_ON")
-            Toast.makeText(this, "📩 Demande CAMÉRA envoyée à l'autre !", Toast.LENGTH_SHORT).show()
         }
 
-        // 📍 DEMANDER LA POSITION DE L'AUTRE
         stream_audio_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
             if (target.isBlank()) {
-                Toast.makeText(this, "⚠️ Entrez le numéro de l'autre d'abord !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "⚠️ Entrez le numéro d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            derniereReception = 0
+            statusText.text = "📤 Envoi demande position..."
             envoyerCommande(target, "MYSAFE_SEND_POS")
-            Toast.makeText(this, "📩 Demande POSITION envoyée à l'autre !", Toast.LENGTH_SHORT).show()
+            
+            // ⏱️ Vérifier si on reçoit une réponse dans 15 secondes
+            android.os.Handler(mainLooper).postDelayed({
+                if (derniereReception == 0L) {
+                    statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Permissions SMS\n• Numéro correct\n• SMS normal activé"
+                    Toast.makeText(this, "⚠️ Pas de réponse reçue", Toast.LENGTH_LONG).show()
+                }
+            }, 15000)
         }
 
         btnFloatMap.setOnClickListener {
@@ -134,7 +136,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
         
-        Log.d(TAG, "✅ Émetteur prêt — commande uniquement")
+        Log.d(TAG, "✅ MainActivity prête !")
     }
 
     private fun requestAllPermissions() {
@@ -148,8 +150,20 @@ class MainActivity : AppCompatActivity(), LocationListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             needed.add(Manifest.permission.READ_SMS)
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.CAMERA)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECORD_AUDIO)
+        }
+        
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
+        } else {
+            Toast.makeText(this, "✅ Toutes permissions accordées !", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -157,30 +171,52 @@ class MainActivity : AppCompatActivity(), LocationListener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_PERMISSIONS) {
             var allOk = true
-            for (r in grantResults) {
-                if (r != PackageManager.PERMISSION_GRANTED) allOk = false
+            for ((i, p) in permissions.withIndex()) {
+                val ok = grantResults.getOrElse(i) { -1 } == PackageManager.PERMISSION_GRANTED
+                Log.d(TAG, "Permission $p : ${if(ok) "✅" else "❌"}")
+                if (!ok) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ Prêt ! Envoyez des commandes à l'autre téléphone", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "✅ TOUTES permissions accordées ! Prêt à l'emploi !", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "⚠️ Certaines permissions manquent — vérifiez dans les paramètres", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun envoyerCommande(numero: String, commande: String) {
-        Log.d(TAG, "📤 Envoi à $numero : $commande")
+        Log.d(TAG, "📤 ENVOYER à $numero : \"$commande\"")
+        
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "❌ Permission SMS manquante", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ Permission SEND_SMS manquante", Toast.LENGTH_SHORT).show()
             return
         }
+
         try {
             val smsManager = SmsManager.getDefault()
+            
+            // ✅ D'abord en SMS NORMAL — plus fiable pour les tests sur le même numéro
+            try {
+                smsManager.sendTextMessage(numero, null, commande, null, null)
+                Toast.makeText(this, "📩 Commande envoyée ! Attendez la réponse...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ SMS normal envoyé")
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "SMS normal échec", e)
+            }
+            
+            // ✅ Puis essayer en SMS de données
             try {
                 smsManager.sendDataMessage(numero, null, 50006.toShort(), commande.toByteArray(Charsets.UTF_8), null, null)
+                Toast.makeText(this, "📩 Commande envoyée (données) !", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ SMS de données envoyé")
             } catch (e: Exception) {
-                smsManager.sendTextMessage(numero, null, commande, null, null)
+                Toast.makeText(this, "❌ Échec envoi : ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "❌ Échec total envoi", e)
             }
         } catch (e: Exception) {
-            Toast.makeText(this, "❌ Échec envoi : ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Erreur envoi", e)
         }
     }
 
@@ -199,7 +235,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         map.invalidate()
         map.controller?.animateTo(gp)
-        statusText.text = "✅ Position de l'autre mise à jour"
+        statusText.text = "✅ Position reçue !"
 
         val entry = "🎯 AUTRE — $time\n$lat, $lon"
         if (!historyList.contains(entry)) {
@@ -208,10 +244,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    override fun onLocationChanged(location: Location) {}
-    override fun onStatusChanged(p: String?, s: Int, e: Bundle?) {}
-    override fun onProviderEnabled(p: String) {}
-    override fun onProviderDisabled(p: String) {}
     override fun onPause() { super.onPause(); map.onPause() }
     override fun onResume() { super.onResume(); map.onResume() }
     override fun onDestroy() {
