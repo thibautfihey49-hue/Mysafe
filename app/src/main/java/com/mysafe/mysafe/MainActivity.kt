@@ -26,6 +26,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity(), LocationListener {
+    companion object {
+        private const val TAG = "MySafe_Main"
+        private const val REQUEST_PERMISSIONS = 1001
+    }
 
     private lateinit var map: MapView
     private lateinit var statusText: TextView
@@ -44,6 +48,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var locationManager: LocationManager
     private val historyList = mutableListOf<String>()
     private lateinit var historyAdapter: ArrayAdapter<String>
+    private var lastLocation: Location? = null
 
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -51,8 +56,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val lat = intent.getDoubleExtra("lat", 0.0)
                 val lon = intent.getDoubleExtra("lon", 0.0)
                 val time = intent.getStringExtra("time") ?: "??:??:??"
+                Log.d(TAG, "📨 Position reçue: $lat, $lon")
                 updateMapPosition(lat, lon, time)
+                Toast.makeText(this@MainActivity, "📍 Position reçue !", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private val envoyerPosReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val target = intent?.getStringExtra("target_phone") ?: return
+            Log.d(TAG, "📤 Demande d'envoyer position à: $target")
+            envoyerMaPosition(target)
         }
     }
 
@@ -84,7 +99,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         historyListView.adapter = historyAdapter
 
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        requestPermissions()
+
+        requestAllPermissions()
 
         toggleBtn.setOnClickListener { toggleTracking() }
         btnClearHistory.setOnClickListener {
@@ -92,73 +108,208 @@ class MainActivity : AppCompatActivity(), LocationListener {
             historyAdapter.notifyDataSetChanged()
             Toast.makeText(this, "🗑️ Historique effacé", Toast.LENGTH_SHORT).show()
         }
+
+        // 📹 DEMANDER CAMÉRA
         stream_video_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
-            if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            try { SmsManager.getDefault().sendDataMessage(target, null, 50006.toShort(), "MYSAFE_CAMERA_ON".toByteArray(Charsets.UTF_8), null, null) }
-            catch (e: Exception) { SmsManager.getDefault().sendTextMessage(target, null, "MYSAFE_CAMERA_ON", null, null) }
-            Toast.makeText(this, "📩 Commande envoyée !", Toast.LENGTH_SHORT).show()
+            if (target.isBlank()) {
+                Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "⚠️ Autorisez l'envoi de SMS dans les paramètres", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            envoyerCommande(target, "MYSAFE_CAMERA_ON")
         }
+
+        // 📍 DEMANDER POSITION
         stream_audio_btn.setOnClickListener {
             val target = targetPhoneInput.text.toString().trim()
-            if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            try { SmsManager.getDefault().sendDataMessage(target, null, 50006.toShort(), "MYSAFE_SEND_POS".toByteArray(Charsets.UTF_8), null, null) }
-            catch (e: Exception) { SmsManager.getDefault().sendTextMessage(target, null, "MYSAFE_SEND_POS", null, null) }
-            Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_SHORT).show()
+            if (target.isBlank()) {
+                Toast.makeText(this, "⚠️ Entrez le numéro cible d'abord !", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "⚠️ Autorisez l'envoi de SMS dans les paramètres", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            envoyerCommande(target, "MYSAFE_SEND_POS")
         }
+
+        // 📌 CARTE FLOTTANTE
         btnFloatMap.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                startService(Intent(this, FloatingMapWindow::class.java))
-                Toast.makeText(this, "🗺️ Carte flottante ouverte !", Toast.LENGTH_LONG).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    startService(Intent(this, FloatingMapWindow::class.java))
+                    Toast.makeText(this, "🗺️ Carte flottante ouverte !", Toast.LENGTH_LONG).show()
+                } else {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                    startActivity(intent)
+                    Toast.makeText(this, "⚠️ Autorisez l'affichage par-dessus les apps", Toast.LENGTH_LONG).show()
+                }
             } else {
-                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
+                startService(Intent(this, FloatingMapWindow::class.java))
             }
         }
+
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
+        registerReceiver(envoyerPosReceiver, IntentFilter("ENVOYER_POSITION"), RECEIVER_NOT_EXPORTED)
+        
+        Log.d(TAG, "✅ MainActivity prête !")
     }
 
-    private fun requestPermissions() {
+    private fun requestAllPermissions() {
         val needed = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.SEND_SMS)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.RECEIVE_SMS)
-        if (needed.isNotEmpty()) ActivityCompat.requestPermissions(this, needed.toTypedArray(), 1001)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.SEND_SMS)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECEIVE_SMS)
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
+        }
     }
 
-    private fun toggleTracking() { if (isTracking) stopTracking() else startTracking() }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_PERMISSIONS) {
+            var allOk = true
+            for (r in grantResults) {
+                if (r != PackageManager.PERMISSION_GRANTED) allOk = false
+            }
+            if (allOk) {
+                Toast.makeText(this, "✅ Toutes les permissions accordées !", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "⚠️ Certaines permissions sont manquantes", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun envoyerCommande(numero: String, commande: String) {
+        Log.d(TAG, "📤 Envoi à $numero : $commande")
+        try {
+            val smsManager = SmsManager.getDefault()
+            // ✅ D'abord essayer en SMS de données (invisible)
+            try {
+                val donnees = commande.toByteArray(Charsets.UTF_8)
+                smsManager.sendDataMessage(numero, null, 50006.toShort(), donnees, null, null)
+                Toast.makeText(this, "📩 Commande envoyée (SMS de données) !", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ SMS de données envoyé")
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "SMS de données impossible, essai en SMS normal", e)
+            }
+            // ✅ Si échec, envoyer en SMS normal
+            smsManager.sendTextMessage(numero, null, commande, null, null)
+            Toast.makeText(this, "📩 Commande envoyée (SMS normal) !", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "✅ SMS normal envoyé")
+        } catch (e: Exception) {
+            Toast.makeText(this, "❌ Échec envoi SMS : ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Erreur envoi SMS", e)
+        }
+    }
+
+    private fun envoyerMaPosition(numero: String) {
+        try {
+            val loc = lastLocation ?: run {
+                locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            }
+            if (loc == null) {
+                Toast.makeText(this, "❌ Position inconnue", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val msg = "MYSAFE:${loc.latitude}:${loc.longitude}:$time:ME"
+            Log.d(TAG, "📤 Envoi ma position à $numero : $msg")
+            
+            try {
+                SmsManager.getDefault().sendDataMessage(numero, null, 50006.toShort(), msg.toByteArray(Charsets.UTF_8), null, null)
+            } catch (e: Exception) {
+                SmsManager.getDefault().sendTextMessage(numero, null, msg, null, null)
+            }
+            Toast.makeText(this, "📩 Position envoyée !", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "❌ Échec envoi position : ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Erreur envoi position", e)
+        }
+    }
+
+    private fun toggleTracking() {
+        if (isTracking) stopTracking() else startTracking()
+    }
+
     private fun startTracking() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Autorisez la localisation", Toast.LENGTH_SHORT).show(); return }
-        isTracking = true; toggleBtn.text = "⏹️ ARRÊTER"; statusText.text = "✅ Suivi actif"
-        try { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000, 5f, this) }
-        catch (e: Exception) { locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 5f, this) }
+            Toast.makeText(this, "⚠️ Autorisez la localisation d'abord", Toast.LENGTH_SHORT).show()
+            return
+        }
+        isTracking = true
+        toggleBtn.text = "⏹️ ARRÊTER LE SUIVI"
+        statusText.text = "✅ Suivi démarré — Envoi sur demande"
+        
+        try {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 10f, this)
+        } catch (e: Exception) {
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000, 10f, this)
+        }
     }
+
     private fun stopTracking() {
-        isTracking = false; toggleBtn.text = "▶️ DÉMARRER"; statusText.text = "⏸️ Arrêté"
+        isTracking = false
+        toggleBtn.text = "▶️ DÉMARRER LE SUIVI"
+        statusText.text = "⏸️ Suivi arrêté"
         locationManager.removeUpdates(this)
     }
 
     override fun onLocationChanged(location: Location) {
+        lastLocation = location
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val gp = GeoPoint(location.latitude, location.longitude)
         if (myMarker == null) {
-            myMarker = Marker(map).apply { position = gp; icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null); title = "Moi" }
+            myMarker = Marker(map).apply {
+                position = gp
+                icon = resources.getDrawable(android.R.drawable.ic_menu_mylocation, null)
+                title = "Ma position"
+            }
             map.overlays.add(myMarker)
-        } else myMarker?.position = gp
+        } else {
+            myMarker?.position = gp
+        }
         map.invalidate()
+        map.controller?.animateTo(gp)
+
         val entry = "📍 MOI — $time\n${location.latitude}, ${location.longitude}"
-        if (!historyList.contains(entry)) { historyList.add(0, entry); historyAdapter.notifyDataSetChanged() }
+        if (!historyList.contains(entry)) {
+            historyList.add(0, entry)
+            historyAdapter.notifyDataSetChanged()
+        }
     }
 
     private fun updateMapPosition(lat: Double, lon: Double, time: String) {
         val gp = GeoPoint(lat, lon)
         if (otherMarker == null) {
-            otherMarker = Marker(map).apply { position = gp; icon = resources.getDrawable(android.R.drawable.ic_menu_compass, null); title = "Cible" }
+            otherMarker = Marker(map).apply {
+                position = gp
+                icon = resources.getDrawable(android.R.drawable.ic_menu_compass, null)
+                title = "Position cible"
+            }
             map.overlays.add(otherMarker)
-        } else otherMarker?.position = gp
+        } else {
+            otherMarker?.position = gp
+        }
         map.invalidate()
+
         val entry = "🎯 CIBLE — $time\n$lat, $lon"
-        if (!historyList.contains(entry)) { historyList.add(0, entry); historyAdapter.notifyDataSetChanged() }
+        if (!historyList.contains(entry)) {
+            historyList.add(0, entry)
+            historyAdapter.notifyDataSetChanged()
+        }
     }
 
     override fun onStatusChanged(p: String?, s: Int, e: Bundle?) {}
@@ -166,5 +317,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
     override fun onProviderDisabled(p: String) {}
     override fun onPause() { super.onPause(); map.onPause() }
     override fun onResume() { super.onResume(); map.onResume() }
-    override fun onDestroy() { super.onDestroy(); unregisterReceiver(positionReceiver) }
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(positionReceiver)
+        unregisterReceiver(envoyerPosReceiver)
+    }
 }
