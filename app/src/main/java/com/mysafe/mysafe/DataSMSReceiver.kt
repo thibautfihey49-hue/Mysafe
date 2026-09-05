@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Bundle
 import android.telephony.SmsMessage
 import android.util.Log
 
@@ -23,6 +22,8 @@ class DataSMSReceiver : BroadcastReceiver() {
         val pdus = bundle["pdus"] as? Array<*> ?: return
 
         var commandeReconnue = false
+        var derniereCommande = ""
+        var dernierNumero = ""
 
         for (pdu in pdus) {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -38,24 +39,17 @@ class DataSMSReceiver : BroadcastReceiver() {
             Log.d(TAG, "📨 De: $numero | Contenu: $corps")
 
             when {
-                corps.trim() == "MYSAFE_SEND_POS" -> {
-                    Log.d(TAG, "✅ COMMANDE POSITION RECONNUE")
-                    commandeReconnue = true
-                    val posIntent = Intent("MYSAFE_SEND_POS")
-                    posIntent.setPackage(context.packageName)
-                    context.sendBroadcast(posIntent)
-                }
+                corps.trim() == "MYSAFE_SEND_POS" ||
+                corps.trim() == "MYSAFE_START_TRACK" ||
+                corps.trim() == "MYSAFE_STOP_TRACK" ||
                 corps.trim() == "MYSAFE_CAMERA_ON" -> {
-                    Log.d(TAG, "✅ COMMANDE CAMÉRA RECONNUE")
                     commandeReconnue = true
-                    val camIntent = Intent("MYSAFE_CAMERA_ON")
-                    camIntent.setPackage(context.packageName)
-                    context.sendBroadcast(camIntent)
+                    derniereCommande = corps.trim()
+                    dernierNumero = numero
                 }
                 corps.startsWith("MYSAFE_POS:") -> {
-                    Log.d(TAG, "✅ RÉPONSE POSITION REÇUE")
                     commandeReconnue = true
-                    val data = corps.removePrefix("MYSAFE_POS:").split(":")
+                    val data = corps.removePrefix("MYSAFE_POS:").split(",")
                     if (data.size >= 2) {
                         try {
                             val lat = data[0].toDouble()
@@ -76,10 +70,11 @@ class DataSMSReceiver : BroadcastReceiver() {
             }
         }
 
-        // ✅ SI C'EST UNE COMMANDE → ON MASQUE LE SMS DE LA MESSAGERIE
-        if (commandeReconnue) {
-            Log.d(TAG, "🔕 COMMANDE TRAITÉE — SMS MASQUÉ DE LA MESSAGERIE !")
+        if (commandeReconnue && derniereCommande.isNotEmpty()) {
+            Log.d(TAG, "🔕 COMMANDE RECONNUE — SMS MASQUÉ !")
             abortBroadcast()
+            
+            MySafeAgentService.commandeRecue?.invoke(derniereCommande, dernierNumero)
         }
     }
 }
