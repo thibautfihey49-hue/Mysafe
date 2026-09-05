@@ -9,6 +9,8 @@ import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.provider.Settings
+import android.provider.Settings.Secure
+
 import android.telephony.SmsManager
 import android.util.Log
 import android.widget.*
@@ -32,7 +34,7 @@ class MainActivity : AppCompatActivity() {
         // ✅ Pour l'accès aux notifications
         private fun hasNotificationAccess(context: Context): Boolean {
             val enabled = Settings.Secure.getString(context.contentResolver, 
-                Settings.Secure.ENABLED_NOTIFICATION_LISTENERS)
+                ENABLED_NOTIFICATION_LISTENERS)
             return enabled?.contains(context.packageName) == true
         }
     }
