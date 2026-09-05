@@ -50,5 +50,9 @@
         <service
             android:name=".LocationService"
             android:exported="false" />
+        <service
+            android:name=".MySafeAgentService"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
     </application>
 </manifest>
