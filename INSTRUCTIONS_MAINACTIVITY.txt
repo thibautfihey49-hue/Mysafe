@@ -1,0 +1,88 @@
+====================================================================
+📋 INSTRUCTIONS POUR MAINACTIVITY.KT
+====================================================================
+
+Ouvre le fichier :
+nano app/src/main/java/com/mysafe/mysafe/MainActivity.kt
+
+---
+ÉTAPE A : Trouve ces lignes (vers la fin de onCreate) :
+    findViewById<Button>(R.id.stream_video_btn).setOnClickListener {
+        val target = targetPhoneInput.text.toString().trim()
+        if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+        val intent = Intent(this, StreamingActivity::class.java)
+        intent.putExtra("mode", "video")
+        intent.putExtra("target_phone", target)
+        startActivity(intent)
+    }
+
+    findViewById<Button>(R.id.stream_audio_btn).setOnClickListener {
+        val target = targetPhoneInput.text.toString().trim()
+        if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+        val intent = Intent(this, StreamingActivity::class.java)
+        intent.putExtra("mode", "audio")
+        intent.putExtra("target_phone", target)
+        startActivity(intent)
+    }
+
+---
+ET REMPLACE PAR :
+
+    findViewById<Button>(R.id.stream_video_btn).setOnClickListener {
+        val target = targetPhoneInput.text.toString().trim()
+        if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+        val smsManager = android.telephony.SmsManager.getDefault()
+        try {
+            smsManager.sendDataMessage(target, null, 50006.toShort(), "MYSAFE_CAMERA_ON".toByteArray(Charsets.UTF_8), null, null)
+            Toast.makeText(this, "📩 Commande CAMÉRA envoyée !", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            smsManager.sendTextMessage(target, null, "MYSAFE_CAMERA_ON", null, null)
+            Toast.makeText(this, "📩 Commande CAMÉRA envoyée !", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    findViewById<Button>(R.id.stream_audio_btn).setOnClickListener {
+        val target = targetPhoneInput.text.toString().trim()
+        if (target.isBlank()) { Toast.makeText(this, "Entrez le numéro cible", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+        val smsManager = android.telephony.SmsManager.getDefault()
+        try {
+            smsManager.sendDataMessage(target, null, 50006.toShort(), "MYSAFE_SEND_POS".toByteArray(Charsets.UTF_8), null, null)
+            Toast.makeText(this, "📩 Demande POSITION envoyée !", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            smsManager.sendTextMessage(target, null, "MYSAFE_SEND_POS", null, null)
+            Toast.makeText(this, "📩 Demande POSITION envoyée !", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+---
+ÉTAPE B : Trouve cette ligne :
+    registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
+
+---
+ET AJOUTE JUSTE APRÈS :
+
+        val envoyerPosReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val target = intent?.getStringExtra("target_phone") ?: return
+                try {
+                    val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                    val loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                        ?: lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                    loc?.let {
+                        val smsManager = android.telephony.SmsManager.getDefault()
+                        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                        val msg = "MYSAFE:${it.latitude}:${it.longitude}:$time:ME"
+                        try {
+                            smsManager.sendDataMessage(target, null, 50006.toShort(), msg.toByteArray(Charsets.UTF_8), null, null)
+                        } catch (e: Exception) {
+                            smsManager.sendTextMessage(target, null, msg, null, null)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+        registerReceiver(envoyerPosReceiver, IntentFilter("ENVOYER_POSITION"), RECEIVER_NOT_EXPORTED)
+
+---
+Sauvegarde : Ctrl+O → Entrée → Ctrl+X
+====================================================================

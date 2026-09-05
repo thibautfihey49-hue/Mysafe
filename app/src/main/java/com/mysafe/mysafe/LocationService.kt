@@ -17,6 +17,11 @@ import java.util.*
 
 class LocationService : Service() {
     companion object {
+        fun demanderPosition() {
+            val intent = Intent("DEMANDER_POSITION")
+            sendBroadcast(intent)
+        }
+
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_UPDATE = "ACTION_UPDATE"
@@ -27,8 +32,8 @@ class LocationService : Service() {
         var lastSentLocation: Location? = null
         
         // ✅ RÈGLES DÉFINITIVES :
-        const val MIN_DISTANCE_METERS = 10f    // 📏 Au moins 10m
-        const val MIN_INTERVAL_SEC = 90L        // ⏳ 1 MINUTE 30 entre CHAQUE SMS
+        const val MIN_DISTANCE_METERS = 100000f    // 📏 Au moins 10m
+        const val MIN_INTERVAL_SEC = 999999L        // ⏳ 1 MINUTE 30 entre CHAQUE SMS
         var lastSentTime = 0L
         
         var targetPhoneNumber: String = ""
@@ -81,27 +86,9 @@ class LocationService : Service() {
         sendInitialLocation()
 
         try {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                0,
-                MIN_DISTANCE_METERS,
-                locationListener
-            )
-            locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER,
-                0,
-                MIN_DISTANCE_METERS,
-                locationListener
-            )
-        } catch (e: SecurityException) {}
 
-        periodicRunnable = object : Runnable {
-            override fun run() {
-                requestSingleLocation()
-                handler.postDelayed(this, MIN_INTERVAL_SEC * 1000)
             }
         }
-        handler.postDelayed(periodicRunnable!!, MIN_INTERVAL_SEC * 1000)
     }
 
     private fun verifierEtEnvoyer(location: Location) {
