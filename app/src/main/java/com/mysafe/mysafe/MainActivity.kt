@@ -28,14 +28,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MySafe_Main"
         private const val REQUEST_PERMISSIONS = 1001
-
-        private fun hasNotificationAccess(context: Context): Boolean {
-            val enabled = android.provider.Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
-            )
-            return enabled?.contains(context.packageName) == true
-        }
     }
 
     private lateinit var map: MapView
@@ -91,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historyList)
         historyListView.adapter = historyAdapter
 
-        statusText.text = "⏳ Vérification des permissions..."
+        statusText.text = "⏳ En attente de commande..."
 
         requestAllPermissions()
 
@@ -132,7 +124,7 @@ class MainActivity : AppCompatActivity() {
                 envoyerCommande(target, "MYSAFE_SEND_POS")
                 android.os.Handler(mainLooper).postDelayed({
                     if (derniereReception == 0L) {
-                        statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Accès notifications\n• Permissions SMS\n• Numéro correct"
+                        statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Permissions SMS\n• Numéro correct"
                     }
                 }, 15000)
             }
@@ -155,14 +147,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
-
         Log.d(TAG, "✅ MainActivity prête !")
-    }
-
-    override fun onResume() {
-        super.onResume()
-        map.onResume()
-
     }
 
     private fun estMonNumero(numero: String): Boolean {
@@ -214,16 +199,6 @@ class MainActivity : AppCompatActivity() {
 
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
-        }
-
-                        "MySafe a besoin de l'ACCÈS AUX NOTIFICATIONS.\n\n" +
-                        "Cliquez sur OK → Trouvez MySafe → Activez-le → Revenez !")
-                .setPositiveButton("OK") { _, _ ->
-                    val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                    startActivity(intent)
-                }
-                .setCancelable(false)
-                .show()
         } else {
             Toast.makeText(this, "✅ Toutes permissions accordées ! Prêt !", Toast.LENGTH_SHORT).show()
         }
@@ -239,7 +214,7 @@ class MainActivity : AppCompatActivity() {
                 if (!ok) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ Permissions système accordées !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "✅ Permissions accordées !", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -297,6 +272,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() { super.onPause(); map.onPause() }
+    override fun onResume() { super.onResume(); map.onResume() }
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
