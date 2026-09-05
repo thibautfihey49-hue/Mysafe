@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Bundle
 import android.telephony.SmsMessage
 import android.util.Log
 
@@ -34,15 +33,13 @@ class SmsReceiver : BroadcastReceiver() {
 
             val messageBody = sms.messageBody ?: ""
             val origin = sms.originatingAddress ?: "INCONNU"
-            val port = sms.port
 
-            Log.d(TAG, "De: $origin | Port: $port | Contenu: $messageBody")
+            Log.d(TAG, "De: $origin | Contenu: $messageBody")
 
-            // ✅ TRAITER LES COMMANDES — SMS NORMAUX ET SMS DE DONNÉES
             when {
                 messageBody.startsWith("MYSAFE:", ignoreCase = true) -> {
                     Log.d(TAG, "✅ Commande POSITION détectée !")
-                    abortBroadcast() // ✅ NE PAS AFFICHER DANS LA MESSAGERIE
+                    abortBroadcast()
                     val parts = messageBody.split(":")
                     if (parts.size >= 4) {
                         val lat = parts[1].toDoubleOrNull()
