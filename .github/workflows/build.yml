@@ -1,0 +1,43 @@
+name: Build MySafe APK
+
+on:
+  push:
+    branches: [ version-stable, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build MySafe
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: ☕ Configurer Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 📱 Configurer Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: 🔑 Rendre Gradle exécutable
+        run: chmod +x gradlew
+
+      - name: 🏗️ Compiler l'APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: ✅ Vérifier l'APK
+        run: ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: 📤 Télécharger l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MySafe-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

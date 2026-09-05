@@ -331,4 +331,36 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); map.onResume() }
     override fun onPause() { super.onPause(); map.onPause() }
     override fun onDestroy() { super.onDestroy(); unregisterReceiver(positionReceiver) }
+
+    private val REQUETE_PERMISSIONS = 12345
+    private val permissionsRequises = arrayOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        android.Manifest.permission.SEND_SMS,
+        android.Manifest.permission.RECEIVE_SMS,
+        android.Manifest.permission.POST_NOTIFICATIONS,
+        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+    )
+
+    private fun demanderPermissions() {
+        val manquantes = permissionsRequises.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+        if (manquantes.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(this, manquantes, REQUETE_PERMISSIONS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUETE_PERMISSIONS && grantResults.isNotEmpty()) {
+            val ok = grantResults.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
+            if (ok) android.widget.Toast.makeText(this, "✅ Agent prêt !", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 }

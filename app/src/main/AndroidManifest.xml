@@ -1,20 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.mysafe.mysafe">
 
-    <!-- ✅ PERMISSIONS COMPLÈTES POUR ANDROID 14+ -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -34,13 +33,8 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".StreamingActivity"
-            android:exported="false" />
-
-        <service
-            android:name=".FloatingMapWindow"
-            android:exported="false" />
+        <activity android:name=".StreamingActivity" android:exported="false" />
+        <service android:name=".FloatingMapWindow" android:exported="false" />
 
         <service
             android:name=".MySafeAgentService"
@@ -49,9 +43,9 @@
 
         <receiver
             android:name=".DataSMSReceiver"
-            android:exported="false"
-            android:priority="999">
-            <intent-filter>
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="9999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>

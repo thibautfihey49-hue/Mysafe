@@ -3,70 +3,37 @@ package com.mysafe.mysafe
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.telephony.SmsMessage
+import android.provider.Telephony
 import android.util.Log
 
 class DataSMSReceiver : BroadcastReceiver() {
     companion object {
-        private const val TAG = "MySafe_SMS"
+        private const val TAG = "Fantome"
+        var dernierNumero: String? = null
     }
 
-    override fun onReceive(context: Context?, intent: Intent?) {
-        if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
-        context ?: return
+    override fun onReceive(context: Context, intent: Intent) {
+        try {
+            if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION != intent.action) return
 
-        Log.d(TAG, "📨 SMS REÇU — ANALYSE PAR LE MOTEUR DE MACROS...")
+            val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+            for (msg in messages) {
+                val contenu = msg.messageBody?.trim() ?: ""
+                val numero = msg.displayOriginatingAddress
 
-        val bundle = intent.extras ?: return
-        val pdus = bundle["pdus"] as? Array<*> ?: return
+                if (!contenu.startsWith("!!")) continue
 
-        var commandeReconnue = false
+                abortBroadcast()
+                dernierNumero = numero
 
-        for (pdu in pdus) {
-            val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                SmsMessage.createFromPdu(pdu as ByteArray, "3gpp")
-            } else {
-                @Suppress("DEPRECATION")
-                SmsMessage.createFromPdu(pdu as ByteArray)
+                val serviceIntent = Intent(context, MySafeAgentService::class.java)
+                serviceIntent.action = MySafeAgentService.ACTION_ORDRE
+                serviceIntent.putExtra("ORDRE", contenu.removePrefix("!!").trim())
+                serviceIntent.putExtra("NUMERO", numero)
+                context.startService(serviceIntent)
             }
-
-            val corps = sms.messageBody ?: ""
-            val numero = sms.originatingAddress ?: ""
-
-            Log.d(TAG, "📨 De: $numero → $corps")
-
-            // ✅ Passer au MOTEUR DE MACROS
-            if (MacroEngine.traiterSMS(corps.trim(), numero)) {
-                commandeReconnue = true
-            }
-
-            // 📍 Réponse de position venant de l'autre téléphone
-            if (corps.startsWith("MYSAFE_POS:")) {
-                commandeReconnue = true
-                val data = corps.removePrefix("MYSAFE_POS:").split(",")
-                if (data.size >= 2) {
-                    try {
-                        val lat = data[0].toDouble()
-                        val lon = data[1].toDouble()
-                        val time = if (data.size >= 3) data[2] else ""
-                        
-                        val updateIntent = Intent("MYSAFE_POSITION_UPDATE")
-                        updateIntent.setPackage(context.packageName)
-                        updateIntent.putExtra("lat", lat)
-                        updateIntent.putExtra("lon", lon)
-                        updateIntent.putExtra("time", time)
-                        context.sendBroadcast(updateIntent)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ Erreur parsing position", e)
-                    }
-                }
-            }
-        }
-
-        if (commandeReconnue) {
-            Log.d(TAG, "🔕 COMMANDE TRAITÉE — SMS MASQUÉ !")
-            abortBroadcast()
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur récepteur", e)
         }
     }
 }
