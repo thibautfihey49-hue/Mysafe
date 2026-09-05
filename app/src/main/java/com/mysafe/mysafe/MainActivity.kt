@@ -25,6 +25,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
+    private val REQUETE_PERMISSIONS = 12345
+    private val permissionsRequises = arrayOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        android.Manifest.permission.SEND_SMS,
+        android.Manifest.permission.RECEIVE_SMS,
+        android.Manifest.permission.POST_NOTIFICATIONS
+    )
     init {
         // Initialiser le moteur de macros au démarrage
     }
@@ -63,6 +71,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        startService(Intent(this, MySafeAgentService::class.java))
+        // ✅ Demander TOUTES les permissions au démarrage
+        demanderPermissions()
         startService(Intent(this, MySafeAgentService::class.java))
         setContentView(R.layout.activity_main)
 
@@ -282,3 +293,36 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(positionReceiver)
     }
 }
+
+    private fun demanderPermissions() {
+        val permissionsManquantes = permissionsRequises.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != 
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+        
+        if (permissionsManquantes.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this,
+                permissionsManquantes,
+                REQUETE_PERMISSIONS
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUETE_PERMISSIONS) {
+            val toutesAccordees = grantResults.all { 
+                it == android.content.pm.PackageManager.PERMISSION_GRANTED 
+            }
+            if (toutesAccordees) {
+                android.widget.Toast.makeText(this, "✅ Toutes les permissions accordées !", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(this, "⚠️ Certaines permissions sont manquantes", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }

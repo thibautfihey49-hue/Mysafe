@@ -3,11 +3,13 @@ package com.mysafe.mysafe
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.*
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 
 class MySafeAgentService : Service() {
@@ -47,8 +49,28 @@ class MySafeAgentService : Service() {
         super.onCreate()
         instance = this
         MacroEngine.initialiser(this)
-        creerNotificationCanal()
-        startForeground(1, creerNotificationDiscrete())
+        
+        // ✅ VÉRIFIER LES PERMISSIONS AVANT DE DEMARRER EN PREMIER PLAN
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            creerNotificationCanal()
+            try {
+                startForeground(1, creerNotificationDiscrete())
+                Log.d(TAG, "✅ Service en premier plan DÉMARRÉ")
+            } catch (e: Exception) {
+                Log.e(TAG, "⚠️ Impossible de démarrer en premier plan: ${e.message}")
+            }
+        } else {
+            Log.w(TAG, "⚠️ Permission GPS NON ACCORDÉE — service en arrière-plan seulement")
+        }
+        
         Log.d(TAG, "🔒 AGENT + MOTEUR DE MACROS DÉMARRÉ")
     }
 
@@ -59,6 +81,20 @@ class MySafeAgentService : Service() {
     fun demarrerSuiviGPSInterne() {
         if (isTracking) return
         isTracking = true
+        
+        // ✅ Vérifier permission avant de démarrer le GPS
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.e(TAG, "❌ Permission GPS NON ACCORDÉE — Impossible de démarrer le suivi")
+            return
+        }
         
         val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         try {
@@ -96,7 +132,7 @@ class MySafeAgentService : Service() {
 
         if (distance >= MIN_DISTANCE_METERS || tempsEcoule >= MIN_TIME_INTERVAL) {
             lastSentTime = maintenant
-            Log.d(TAG, "📍 Déplacement détecté : ${distance.toInt()}m — prêt à envoyer")
+            Log.d(TAG, "📍 Déplacement détecté : ${distance.toInt()}m")
         }
     }
 
