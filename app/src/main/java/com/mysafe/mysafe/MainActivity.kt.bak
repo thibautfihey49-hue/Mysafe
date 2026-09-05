@@ -292,4 +292,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
     }
-}
