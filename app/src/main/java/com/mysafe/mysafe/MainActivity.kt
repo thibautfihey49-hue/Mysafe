@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
         startService(Intent(this, MySafeAgentService::class.java))
         setContentView(R.layout.activity_main)
         demanderPermissions()
+        demanderPermissions()
 
         val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
         Configuration.getInstance().osmdroidBasePath = osmdroidDir
@@ -322,5 +323,40 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
+    }
+
+    // ✅ Gestion des permissions
+    private val REQUETE_PERMISSIONS = 12345
+    private val permissionsRequises = arrayOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.SEND_SMS,
+        Manifest.permission.RECEIVE_SMS,
+        Manifest.permission.POST_NOTIFICATIONS
+    )
+
+    private fun demanderPermissions() {
+        val permissionsManquantes = permissionsRequises.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+        if (permissionsManquantes.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsManquantes, REQUETE_PERMISSIONS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUETE_PERMISSIONS) {
+            val toutesAccordees = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (toutesAccordees) {
+                android.widget.Toast.makeText(this, "✅ Permissions accordées !", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(this, "⚠️ Certaines permissions sont manquantes", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 }
