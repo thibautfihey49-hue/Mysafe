@@ -16,6 +16,8 @@ import kotlin.math.roundToInt
 
 class MySafeAgentService : Service() {
     companion object {
+        fun demarrerGPS(context: Context) { instance?.demarrerSuiviGPSInterne() }
+        fun arreterGPS(context: Context) { instance?.arreterSuiviGPSInterne() }
         const val ACTION_ORDRE = "ACTION_ORDRE"
         const val ACTION_DEMARRER = "DEMARRER"
         const val ACTION_ARRETER = "ARRETER"

@@ -360,7 +360,7 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUETE_PERMISSIONS && grantResults.isNotEmpty()) {
             val ok = grantResults.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
-            if (ok) android.widget.Toast.makeText(this, "✅ Agent prêt !", android.widget.Toast.LENGTH_SHORT).show()
+            if (ok) android.widget.Toast.makeText(this, "✅ Prêt !", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 }
