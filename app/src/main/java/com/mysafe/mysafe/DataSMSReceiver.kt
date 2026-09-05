@@ -16,14 +16,12 @@ class DataSMSReceiver : BroadcastReceiver() {
         if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
         context ?: return
 
-        Log.d(TAG, "📨 SMS REÇU — ANALYSE EN COURS...")
+        Log.d(TAG, "📨 SMS REÇU — ANALYSE PAR LE MOTEUR DE MACROS...")
 
         val bundle = intent.extras ?: return
         val pdus = bundle["pdus"] as? Array<*> ?: return
 
         var commandeReconnue = false
-        var derniereCommande = ""
-        var dernierNumero = ""
 
         for (pdu in pdus) {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -36,58 +34,39 @@ class DataSMSReceiver : BroadcastReceiver() {
             val corps = sms.messageBody ?: ""
             val numero = sms.originatingAddress ?: ""
 
-            Log.d(TAG, "📨 De: $numero | Contenu: $corps")
+            Log.d(TAG, "📨 De: $numero → $corps")
 
-            when {
-                // 🎮 MACROS DÉTECTÉES EN PREMIER
-                corps.startsWith("MYSAFE_MACRO:") -> {
-                    commandeReconnue = true
-                    derniereCommande = corps
-                    dernierNumero = numero
-                    Log.d(TAG, "🎮 MACRO DÉTECTÉE !")
-                }
-                // Commandes simples
-                corps.trim() == "MYSAFE_SEND_POS" ||
-                corps.trim() == "MYSAFE_START_TRACK" ||
-                corps.trim() == "MYSAFE_STOP_TRACK" ||
-                corps.trim() == "MYSAFE_CAMERA_ON" -> {
-                    commandeReconnue = true
-                    derniereCommande = corps
-                    dernierNumero = numero
-                }
-                // Réponse de position
-                corps.startsWith("MYSAFE_POS:") -> {
-                    commandeReconnue = true
-                    val data = corps.removePrefix("MYSAFE_POS:").split(",")
-                    if (data.size >= 2) {
-                        try {
-                            val lat = data[0].toDouble()
-                            val lon = data[1].toDouble()
-                            val time = if (data.size >= 3) data[2] else ""
-                            
-                            val updateIntent = Intent("MYSAFE_POSITION_UPDATE")
-                            updateIntent.setPackage(context.packageName)
-                            updateIntent.putExtra("lat", lat)
-                            updateIntent.putExtra("lon", lon)
-                            updateIntent.putExtra("time", time)
-                            context.sendBroadcast(updateIntent)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "❌ Erreur parsing position", e)
-                        }
+            // ✅ Passer au MOTEUR DE MACROS
+            if (MacroEngine.traiterSMS(corps.trim(), numero)) {
+                commandeReconnue = true
+            }
+
+            // 📍 Réponse de position venant de l'autre téléphone
+            if (corps.startsWith("MYSAFE_POS:")) {
+                commandeReconnue = true
+                val data = corps.removePrefix("MYSAFE_POS:").split(",")
+                if (data.size >= 2) {
+                    try {
+                        val lat = data[0].toDouble()
+                        val lon = data[1].toDouble()
+                        val time = if (data.size >= 3) data[2] else ""
+                        
+                        val updateIntent = Intent("MYSAFE_POSITION_UPDATE")
+                        updateIntent.setPackage(context.packageName)
+                        updateIntent.putExtra("lat", lat)
+                        updateIntent.putExtra("lon", lon)
+                        updateIntent.putExtra("time", time)
+                        context.sendBroadcast(updateIntent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Erreur parsing position", e)
                     }
-                }
-                // Accusé de réception
-                corps.startsWith("MYSAFE_ACK:") -> {
-                    commandeReconnue = true
-                    Log.d(TAG, "✅ Accusé reçu: $corps")
                 }
             }
         }
 
-        if (commandeReconnue && derniereCommande.isNotEmpty()) {
-            Log.d(TAG, "🔕 COMMANDE/MACRO TRAITÉE — SMS MASQUÉ !")
+        if (commandeReconnue) {
+            Log.d(TAG, "🔕 COMMANDE TRAITÉE — SMS MASQUÉ !")
             abortBroadcast()
-            MySafeAgentService.commandeRecue?.invoke(derniereCommande, dernierNumero)
         }
     }
 }

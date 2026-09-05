@@ -25,6 +25,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
+    init {
+        // Initialiser le moteur de macros au démarrage
+    }
     companion object {
         private const val TAG = "MySafe_Main"
         private const val REQUEST_PERMISSIONS = 1001
@@ -60,6 +63,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        startService(Intent(this, MySafeAgentService::class.java))
         setContentView(R.layout.activity_main)
 
         val osmdroidDir = File(getExternalFilesDir(null), "osmdroid")
