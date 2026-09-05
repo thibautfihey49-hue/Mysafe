@@ -16,7 +16,7 @@ class DataSMSReceiver : BroadcastReceiver() {
         if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
         context ?: return
 
-        Log.d(TAG, "📨 SMS REÇU — LECTURE EN COURS...")
+        Log.d(TAG, "📨 SMS REÇU — ANALYSE EN COURS...")
 
         val bundle = intent.extras ?: return
         val pdus = bundle["pdus"] as? Array<*> ?: return
@@ -39,14 +39,23 @@ class DataSMSReceiver : BroadcastReceiver() {
             Log.d(TAG, "📨 De: $numero | Contenu: $corps")
 
             when {
+                // 🎮 MACROS DÉTECTÉES EN PREMIER
+                corps.startsWith("MYSAFE_MACRO:") -> {
+                    commandeReconnue = true
+                    derniereCommande = corps
+                    dernierNumero = numero
+                    Log.d(TAG, "🎮 MACRO DÉTECTÉE !")
+                }
+                // Commandes simples
                 corps.trim() == "MYSAFE_SEND_POS" ||
                 corps.trim() == "MYSAFE_START_TRACK" ||
                 corps.trim() == "MYSAFE_STOP_TRACK" ||
                 corps.trim() == "MYSAFE_CAMERA_ON" -> {
                     commandeReconnue = true
-                    derniereCommande = corps.trim()
+                    derniereCommande = corps
                     dernierNumero = numero
                 }
+                // Réponse de position
                 corps.startsWith("MYSAFE_POS:") -> {
                     commandeReconnue = true
                     val data = corps.removePrefix("MYSAFE_POS:").split(",")
@@ -67,13 +76,17 @@ class DataSMSReceiver : BroadcastReceiver() {
                         }
                     }
                 }
+                // Accusé de réception
+                corps.startsWith("MYSAFE_ACK:") -> {
+                    commandeReconnue = true
+                    Log.d(TAG, "✅ Accusé reçu: $corps")
+                }
             }
         }
 
         if (commandeReconnue && derniereCommande.isNotEmpty()) {
-            Log.d(TAG, "🔕 COMMANDE RECONNUE — SMS MASQUÉ !")
+            Log.d(TAG, "🔕 COMMANDE/MACRO TRAITÉE — SMS MASQUÉ !")
             abortBroadcast()
-            
             MySafeAgentService.commandeRecue?.invoke(derniereCommande, dernierNumero)
         }
     }
