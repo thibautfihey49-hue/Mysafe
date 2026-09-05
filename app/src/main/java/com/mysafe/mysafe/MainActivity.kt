@@ -32,7 +32,14 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_PERMISSIONS = 1001
         
         // ✅ Pour l'accès aux notifications
-        private fun hasNotificationAccess(context: Context): Boolean {
+        ,// ✅ Vérifier si l'accès aux notifications est activé
+    private fun hasNotificationAccess(context: Context): Boolean {
+        val enabled = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+        )
+        return enabled?.contains(context.packageName) == true
+    }
             val enabled = Settings.Secure.getString(context.contentResolver, 
                 ENABLED_NOTIFICATION_LISTENERS)
             return enabled?.contains(context.packageName) == true
