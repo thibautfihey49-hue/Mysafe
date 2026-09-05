@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity() {
         private fun hasNotificationAccess(context: Context): Boolean {
             val enabled = android.provider.Settings.Secure.getString(
                 context.contentResolver,
-                android.provider.Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+                Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
             )
             return enabled?.contains(context.packageName) == true
         }
@@ -163,10 +163,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         map.onResume()
 
-        if (!hasNotificationAccess(this)) {
-            Toast.makeText(this, "⚠️ ACCÈS AUX NOTIFICATIONS MANQUANT !\n→ Autorisez MySafe pour masquer les SMS",
-                Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun estMonNumero(numero: String): Boolean {
@@ -220,10 +216,6 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
         }
 
-        if (!hasNotificationAccess(this)) {
-            android.app.AlertDialog.Builder(this)
-                .setTitle("🔔 Permission requise")
-                .setMessage("Pour masquer les SMS de commande dans la messagerie, " +
                         "MySafe a besoin de l'ACCÈS AUX NOTIFICATIONS.\n\n" +
                         "Cliquez sur OK → Trouvez MySafe → Activez-le → Revenez !")
                 .setPositiveButton("OK") { _, _ ->
