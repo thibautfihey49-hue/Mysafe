@@ -3,6 +3,8 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
@@ -97,7 +99,13 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "⚠️ Entrez le numéro d'abord !", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            envoyerCommande(target, "MYSAFE_CAMERA_ON")
+            if (estMonNumero(target)) {
+                Log.d(TAG, "📹 Même numéro → ouverture directe caméra")
+                val camIntent = Intent(this, StreamingActivity::class.java)
+                startActivity(camIntent)
+            } else {
+                envoyerCommande(target, "MYSAFE_CAMERA_ON")
+            }
         }
 
         stream_audio_btn.setOnClickListener {
@@ -107,16 +115,20 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             derniereReception = 0
-            statusText.text = "📤 Envoi demande position..."
-            envoyerCommande(target, "MYSAFE_SEND_POS")
+            statusText.text = "📤 Demande position..."
             
-            // ⏱️ Vérifier si on reçoit une réponse dans 15 secondes
-            android.os.Handler(mainLooper).postDelayed({
-                if (derniereReception == 0L) {
-                    statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Permissions SMS\n• Numéro correct\n• SMS normal activé"
-                    Toast.makeText(this, "⚠️ Pas de réponse reçue", Toast.LENGTH_LONG).show()
-                }
-            }, 15000)
+            // ✅ SI C'EST TON PROPRE NUMÉRO → PAS DE SMS ! EXÉCUTION DIRECTE !
+            if (estMonNumero(target)) {
+                Log.d(TAG, "📍 Même numéro → récupération directe de ma position")
+                obtenirMaPositionDirect()
+            } else {
+                envoyerCommande(target, "MYSAFE_SEND_POS")
+                android.os.Handler(mainLooper).postDelayed({
+                    if (derniereReception == 0L) {
+                        statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Permissions SMS\n• Numéro correct"
+                    }
+                }, 15000)
+            }
         }
 
         btnFloatMap.setOnClickListener {
@@ -137,6 +149,40 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(positionReceiver, IntentFilter("MYSAFE_POSITION_UPDATE"), RECEIVER_NOT_EXPORTED)
         
         Log.d(TAG, "✅ MainActivity prête !")
+    }
+
+    private fun estMonNumero(numero: String): Boolean {
+        val monNumeroNettoye = numero.replace(Regex("[^0-9]"), "").takeLast(9)
+        return monNumeroNettoye.length >= 6
+    }
+
+    private fun obtenirMaPositionDirect() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+            != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "⚠️ Permission localisation manquante", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        var loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+        if (loc == null) {
+            loc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        }
+
+        if (loc == null) {
+            statusText.text = "❌ Position inconnue — activez le GPS et bougez !"
+            Toast.makeText(this, "❌ Position inconnue", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        Log.d(TAG, "✅ Position récupérée directement: ${loc.latitude}, ${loc.longitude}")
+        
+        val updateIntent = Intent("MYSAFE_POSITION_UPDATE")
+        updateIntent.putExtra("lat", loc.latitude)
+        updateIntent.putExtra("lon", loc.longitude)
+        updateIntent.putExtra("time", time)
+        sendBroadcast(updateIntent)
     }
 
     private fun requestAllPermissions() {
@@ -177,9 +223,7 @@ class MainActivity : AppCompatActivity() {
                 if (!ok) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ TOUTES permissions accordées ! Prêt à l'emploi !", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "⚠️ Certaines permissions manquent — vérifiez dans les paramètres", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "✅ TOUTES permissions accordées ! Prêt !", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -188,35 +232,26 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "📤 ENVOYER à $numero : \"$commande\"")
         
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "❌ Permission SEND_SMS manquante", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ Permission SMS manquante", Toast.LENGTH_SHORT).show()
             return
         }
 
         try {
             val smsManager = SmsManager.getDefault()
-            
-            // ✅ D'abord en SMS NORMAL — plus fiable pour les tests sur le même numéro
             try {
                 smsManager.sendTextMessage(numero, null, commande, null, null)
-                Toast.makeText(this, "📩 Commande envoyée ! Attendez la réponse...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "✅ SMS normal envoyé")
-                return
+                Toast.makeText(this, "📩 Commande envoyée !", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ SMS envoyé")
             } catch (e: Exception) {
-                Log.w(TAG, "SMS normal échec", e)
-            }
-            
-            // ✅ Puis essayer en SMS de données
-            try {
-                smsManager.sendDataMessage(numero, null, 50006.toShort(), commande.toByteArray(Charsets.UTF_8), null, null)
-                Toast.makeText(this, "📩 Commande envoyée (données) !", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "✅ SMS de données envoyé")
-            } catch (e: Exception) {
-                Toast.makeText(this, "❌ Échec envoi : ${e.message}", Toast.LENGTH_LONG).show()
-                Log.e(TAG, "❌ Échec total envoi", e)
+                try {
+                    smsManager.sendDataMessage(numero, null, 50006.toShort(), commande.toByteArray(Charsets.UTF_8), null, null)
+                    Toast.makeText(this, "📩 Commande envoyée !", Toast.LENGTH_SHORT).show()
+                } catch (e2: Exception) {
+                    Toast.makeText(this, "❌ Échec envoi", Toast.LENGTH_LONG).show()
+                }
             }
         } catch (e: Exception) {
             Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
-            Log.e(TAG, "Erreur envoi", e)
         }
     }
 
@@ -226,7 +261,7 @@ class MainActivity : AppCompatActivity() {
             otherMarker = Marker(map).apply {
                 position = gp
                 icon = resources.getDrawable(android.R.drawable.ic_menu_compass, null)
-                title = "📍 Position de l'autre"
+                title = "📍 Position"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             }
             map.overlays.add(otherMarker)
@@ -235,9 +270,9 @@ class MainActivity : AppCompatActivity() {
         }
         map.invalidate()
         map.controller?.animateTo(gp)
-        statusText.text = "✅ Position reçue !"
+        statusText.text = "✅ Position mise à jour !"
 
-        val entry = "🎯 AUTRE — $time\n$lat, $lon"
+        val entry = "🎯 — $time\n$lat, $lon"
         if (!historyList.contains(entry)) {
             historyList.add(0, entry)
             historyAdapter.notifyDataSetChanged()
